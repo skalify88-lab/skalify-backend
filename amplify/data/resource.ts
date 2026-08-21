@@ -6,7 +6,8 @@ const schema = a.schema({
     .model({
       articleName: a.string().required(),
       description: a.string().required(),
-      enterpriseName: a.string().required(),
+      enterpriseName: a.string(),
+      enterpriseId: a.string().required(),
       imageUrl: a.string().required(),
       userId: a.string().required(),
       articlePrice: a.string().required(),

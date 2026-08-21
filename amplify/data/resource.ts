@@ -7,7 +7,7 @@ const schema = a.schema({
       articleName: a.string().required(),
       description: a.string().required(),
       enterpriseName: a.string(),
-      enterpriseId: a.string().required(),
+      enterpriseId: a.string(),
       imageUrl: a.string().required(),
       userId: a.string().required(),
       articlePrice: a.string().required(),

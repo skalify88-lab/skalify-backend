@@ -51,6 +51,19 @@ const schema = a.schema({
       allow.authenticated().to(['read']), // et par tout utilisateur connecté
     ]),
 
+
+
+    Balance: a
+        .model({
+          id: a.id(),
+          amount: a.float().default(0),
+          currency: a.string().default('XAF'),
+        })
+        .authorization((allow) => [
+          allow.owner(),
+        ]),
+
+
 });
 
 export type Schema = ClientSchema<typeof schema>;

@@ -64,6 +64,21 @@ const schema = a.schema({
         ]),
 
 
+    Transaction: a
+        .model({
+          id: a.id(),
+          balanceId: a.string().required(),
+          type: a.enum(['CREDIT', 'DEBIT']),
+          amount: a.float().required(),
+          currency: a.string().default('XAF'),
+          reason: a.string(),
+          createdAt: a.datetime(),
+        })
+        .authorization((allow) => [
+          allow.owner(),
+        ]),
+
+
 });
 
 export type Schema = ClientSchema<typeof schema>;

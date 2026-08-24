@@ -3,21 +3,27 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 const schema = a.schema({
 
   Article: a
-    .model({
-      articleName: a.string().required(),
-      description: a.string().required(),
-      enterpriseName: a.string(),
-      enterpriseId: a.string(),
-      imageUrl: a.string().required(),
-      userId: a.string().required(),
-      articlePrice: a.string().required(),
-      createdAt: a.datetime(),
-    })
-    .authorization((allow) => [
-      allow.guest().to(['read']),
-      allow.authenticated().to(['read']),
-      allow.owner(),
-    ]),
+      .model({
+        articleName: a.string().required(),
+        description: a.string().required(),
+        enterpriseName: a.string(),
+        enterpriseId: a.string(),
+        imageUrl: a.string().required(),
+        images: a.string().array(),
+        userId: a.string().required(),
+        articlePrice: a.string().required(),
+        category: a.string(),
+        colors: a.string().array(),
+        sizeType: a.enum(['STANDARD', 'CUSTOM']),
+        sizes: a.string().array(),
+        shippingPrice: a.string(),
+        createdAt: a.datetime(),
+      })
+      .authorization((allow) => [
+        allow.guest().to(['read']),
+        allow.authenticated().to(['read']),
+        allow.owner(),
+      ]),
 
     UserProfile: a
     .model({

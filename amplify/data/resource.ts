@@ -85,6 +85,16 @@ const schema = a.schema({
         ]),
 
 
+    Wishlist: a
+        .model({
+          id: a.id(),
+          articleId: a.string().required(),
+        })
+        .authorization((allow) => [
+          allow.owner(),
+        ]),
+
+
 });
 
 export type Schema = ClientSchema<typeof schema>;

@@ -17,6 +17,7 @@ const schema = a.schema({
         sizeType: a.enum(['STANDARD', 'CUSTOM']),
         sizes: a.string().array(),
         shippingPrice: a.string(),
+        shippingDuration: a.string(),
         createdAt: a.datetime(),
       })
       .authorization((allow) => [
@@ -33,6 +34,8 @@ const schema = a.schema({
       phoneNumber: a.string().required(),
       profilePhotoUrl: a.string(),
       accountType: a.enum(['PARTICULIER', 'ENTREPRISE']),
+      city: a.string(),
+      region: a.string(),
     })
     .authorization((allow) => [
       allow.owner(),
@@ -50,11 +53,13 @@ const schema = a.schema({
       categories: a.string().array(),
       openingHours: a.string(),
       planRenewalDate: a.datetime(),
+      city: a.string(),
+      region: a.string(),
     })
     .authorization((allow) => [
       allow.owner(),
-      allow.guest().to(['read']),        // profils publics consultables sans connexion
-      allow.authenticated().to(['read']), // et par tout utilisateur connecté
+      allow.guest().to(['read']),
+      allow.authenticated().to(['read']),
     ]),
 
 

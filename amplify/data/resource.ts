@@ -63,6 +63,23 @@ const schema = a.schema({
     ]),
 
 
+    CartItem: a
+        .model({
+          id: a.id(),
+          articleId: a.string().required(),
+          articleName: a.string().required(),
+          imageUrl: a.string().required(),
+          selectedColor: a.string(),
+          selectedSize: a.string(),
+          unitPrice: a.string().required(),
+          shippingPrice: a.string(),
+          quantity: a.integer().default(1),
+          enterpriseId: a.string().required(),
+        })
+        .authorization((allow) => [
+          allow.owner(),
+        ]),
+
 
     Balance: a
         .model({

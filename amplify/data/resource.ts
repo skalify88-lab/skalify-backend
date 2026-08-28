@@ -55,6 +55,7 @@ const schema = a.schema({
       planRenewalDate: a.datetime(),
       city: a.string(),
       region: a.string(),
+      ownerUsername: a.string()
     })
     .authorization((allow) => [
       allow.owner(),

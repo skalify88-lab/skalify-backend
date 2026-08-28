@@ -107,6 +107,42 @@ const schema = a.schema({
         ]),
 
 
+    Order: a
+        .model({
+          id: a.id(),
+          buyerId: a.string().required(),
+          buyerOwner: a.string().required(),
+          buyerName: a.string().required(),
+          buyerPhone: a.string(),
+          enterpriseId: a.string().required(),
+          sellerOwner: a.string().required(),
+          enterpriseName: a.string().required(),
+          enterprisePhone: a.string(),
+          enterpriseCity: a.string(),
+          enterpriseRegion: a.string(),
+          articleId: a.string().required(),
+          articleName: a.string().required(),
+          imageUrl: a.string().required(),
+          selectedColor: a.string(),
+          selectedSize: a.string(),
+          quantity: a.integer().required(),
+          unitPrice: a.string().required(),
+          shippingPrice: a.string(),
+          total: a.string().required(),
+          shippingDuration: a.string(),
+          status: a.enum(['PENDING', 'IN_PROGRESS', 'IN_TRANSIT', 'COMPLETED', 'REJECTED']),
+          buyerCode: a.string().required(),
+          sellerCode: a.string().required(),
+          buyerEnteredCode: a.string(),
+          sellerEnteredCode: a.string(),
+          createdAt: a.datetime(),
+        })
+        .authorization((allow) => [
+          allow.ownerDefinedIn('buyerOwner'),
+          allow.ownerDefinedIn('sellerOwner'),
+        ]),
+
+
     Wishlist: a
         .model({
           id: a.id(),

@@ -133,6 +133,8 @@ const schema = a.schema({
           shippingDuration: a.string(),
           status: a.enum(['PENDING', 'IN_PROGRESS', 'IN_TRANSIT', 'COMPLETED', 'REJECTED']),
           buyerCode: a.string().required(),
+          buyerCity: a.string(),
+          buyerRegion: a.string(),
           sellerCode: a.string().required(),
           buyerEnteredCode: a.string(),
           sellerEnteredCode: a.string(),

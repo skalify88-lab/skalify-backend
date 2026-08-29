@@ -137,6 +137,8 @@ const schema = a.schema({
           buyerEnteredCode: a.string(),
           sellerEnteredCode: a.string(),
           createdAt: a.datetime(),
+          buyerDebited: a.boolean().default(false),
+          sellerCredited: a.boolean().default(false),
         })
         .authorization((allow) => [
           allow.ownerDefinedIn('buyerOwner'),

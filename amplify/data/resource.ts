@@ -141,6 +141,7 @@ const schema = a.schema({
           createdAt: a.datetime(),
           buyerDebited: a.boolean().default(false),
           sellerCredited: a.boolean().default(false),
+          buyerRefunded: a.boolean().default(false),
         })
         .authorization((allow) => [
           allow.ownerDefinedIn('buyerOwner'),

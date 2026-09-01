@@ -124,9 +124,7 @@ const schema = a.schema({
           failureReason: a.string(),
         })
         .authorization((allow) => [
-          allow.ownerDefinedIn('buyerOwner').to(['read']), // le client ne fait QUE lire, jamais écrire
-          allow.resource(initKpayPayment),
-          allow.resource(kpayWebhook),
+            allow.ownerDefinedIn('buyerOwner').to(['read']),
         ]),
 
     initKpayPaymentMutation: a

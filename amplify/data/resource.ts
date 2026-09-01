@@ -1,4 +1,7 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
+import { initKpayPayment } from '../functions/init-kpay-payment/resource';
+import { kpayWebhook } from '../functions/kpay-webhook/resource';
+
 
 const schema = a.schema({
 
@@ -106,6 +109,36 @@ const schema = a.schema({
         .authorization((allow) => [
           allow.owner(),
         ]),
+
+
+    PaymentIntent: a
+        .model({
+          id: a.id(),
+          buyerOwner: a.string().required(),
+          externalId: a.string().required(),
+          kpayPaymentId: a.string(),
+          amount: a.float().required(),
+          phoneNumber: a.string().required(),
+          provider: a.string().required(),
+          status: a.enum(['PENDING', 'COMPLETED', 'FAILED', 'CANCELLED']),
+          failureReason: a.string(),
+        })
+        .authorization((allow) => [
+          allow.ownerDefinedIn('buyerOwner').to(['read']), // le client ne fait QUE lire, jamais écrire
+          allow.resource(initKpayPayment),
+          allow.resource(kpayWebhook),
+        ]),
+
+    initKpayPaymentMutation: a
+        .mutation()
+        .arguments({
+          amount: a.float().required(),
+          phoneNumber: a.string().required(),
+          provider: a.string().required(),
+        })
+        .returns(a.ref('PaymentIntent'))
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(initKpayPayment)),
 
 
     Order: a

@@ -2,7 +2,6 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 import { initKpayPayment } from '../functions/init-kpay-payment/resource';
 import { kpayWebhook } from '../functions/kpay-webhook/resource';
 
-
 const schema = a.schema({
 
   Article: a
@@ -110,6 +109,14 @@ const schema = a.schema({
           allow.owner(),
         ]),
 
+    KpayPaymentResult: a.customType({ // NOUVEAU : type de retour simple, pas un vrai modèle persisté par la fonction
+      externalId: a.string().required(),
+      kpayPaymentId: a.string().required(),
+      amount: a.float().required(),
+      phoneNumber: a.string().required(),
+      provider: a.string().required(),
+      status: a.string().required(),
+    }),
 
     PaymentIntent: a
         .model({
@@ -124,7 +131,7 @@ const schema = a.schema({
           failureReason: a.string(),
         })
         .authorization((allow) => [
-            allow.ownerDefinedIn('buyerOwner').to(['read']),
+            allow.ownerDefinedIn('buyerOwner'),
         ]),
 
     initKpayPaymentMutation: a
@@ -134,7 +141,7 @@ const schema = a.schema({
           phoneNumber: a.string().required(),
           provider: a.string().required(),
         })
-        .returns(a.ref('PaymentIntent'))
+        .returns(a.ref('KpayPaymentResult'))
         .authorization((allow) => [allow.authenticated()])
         .handler(a.handler.function(initKpayPayment)),
 

@@ -142,7 +142,7 @@ const schema = a.schema({
           provider: a.string().required(),
         })
         .returns(a.ref('KpayPaymentResult'))
-        .authorization((allow) => [allow.authenticated()])
+        .authorization((allow) => [allow.authenticated('identityPool')])
         .handler(a.handler.function(initKpayPayment)),
 
 

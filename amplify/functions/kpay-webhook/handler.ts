@@ -2,16 +2,22 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, ScanCommand, UpdateCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { randomUUID } from 'crypto';
 import * as crypto from 'crypto';
-import { env } from '$amplify/env/kpay-webhook';
 
 const ddbClient = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(ddbClient);
+
+function requireEnv(name: string): string { // NOUVEAU : petit garde-fou, échoue clairement si une variable manque
+  const value = process.env[name];
+  if (!value) throw new Error(`Variable d'environnement manquante : ${name}`);
+  return value;
+}
 
 export const handler = async (event: any) => {
   const rawBody = event.body;
   const signature = event.headers?.['x-kpay-signature'] || event.headers?.['X-KPAY-Signature'];
 
-  const expected = crypto.createHmac('sha256', env.KPAY_WEBHOOK_SECRET).update(rawBody).digest('hex');
+  const webhookSecret = requireEnv('KPAY_WEBHOOK_SECRET'); // NOUVEAU : process.env au lieu de $amplify/env
+  const expected = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
   if (!signature || signature.length !== expected.length ||
       !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
     return { statusCode: 400, body: 'Invalid signature' };
@@ -20,8 +26,12 @@ export const handler = async (event: any) => {
   const payload = JSON.parse(rawBody);
   const { paymentId, externalId, status, failureReason } = payload;
 
+  const paymentIntentTable = requireEnv('PAYMENT_INTENT_TABLE_NAME'); // NOUVEAU
+  const balanceTable = requireEnv('BALANCE_TABLE_NAME'); // NOUVEAU
+  const transactionTable = requireEnv('TRANSACTION_TABLE_NAME'); // NOUVEAU
+
   const scanResult = await ddb.send(new ScanCommand({
-    TableName: env.PAYMENT_INTENT_TABLE_NAME,
+    TableName: paymentIntentTable,
     FilterExpression: 'externalId = :eid',
     ExpressionAttributeValues: { ':eid': externalId },
   }));
@@ -29,7 +39,7 @@ export const handler = async (event: any) => {
   if (!intent) return { statusCode: 200, body: 'OK (intent introuvable, ignoré)' };
 
   await ddb.send(new UpdateCommand({
-    TableName: env.PAYMENT_INTENT_TABLE_NAME,
+    TableName: paymentIntentTable,
     Key: { id: intent.id },
     UpdateExpression: 'SET #status = :status, kpayPaymentId = :pid, failureReason = :reason',
     ExpressionAttributeNames: { '#status': 'status' },
@@ -38,7 +48,7 @@ export const handler = async (event: any) => {
 
   if (status === 'COMPLETED') {
     const balanceScan = await ddb.send(new ScanCommand({
-      TableName: env.BALANCE_TABLE_NAME,
+      TableName: balanceTable,
       FilterExpression: '#owner = :owner',
       ExpressionAttributeNames: { '#owner': 'owner' },
       ExpressionAttributeValues: { ':owner': intent.buyerOwner },
@@ -47,20 +57,20 @@ export const handler = async (event: any) => {
 
     if (balance) {
       await ddb.send(new UpdateCommand({
-        TableName: env.BALANCE_TABLE_NAME,
+        TableName: balanceTable,
         Key: { id: balance.id },
         UpdateExpression: 'SET amount = :newAmount',
         ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + intent.amount },
       }));
     } else {
       await ddb.send(new PutCommand({
-        TableName: env.BALANCE_TABLE_NAME,
+        TableName: balanceTable,
         Item: { id: randomUUID(), owner: intent.buyerOwner, amount: intent.amount, currency: 'XAF', __typename: 'Balance' },
       }));
     }
 
     await ddb.send(new PutCommand({
-      TableName: env.TRANSACTION_TABLE_NAME,
+      TableName: transactionTable,
       Item: {
         id: randomUUID(),
         owner: intent.buyerOwner,

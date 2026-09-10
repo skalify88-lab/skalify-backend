@@ -8,6 +8,8 @@ import { initKpayPayment } from './functions/init-kpay-payment/resource';
 import { kpayWebhook } from './functions/kpay-webhook/resource';
 import { initCoolPayPayment } from './functions/init-coolpay-payment/resource';
 import { coolPayWebhook } from './functions/coolpay-webhook/resource';
+import { aws_lambda as lambda } from 'aws-cdk-lib';
+
 
 const backend = defineBackend({
   auth,
@@ -22,39 +24,40 @@ const backend = defineBackend({
 // Accès public en lecture pour les images d'articles
 const bucket = backend.storage.resources.bucket;
 
+
+
+
 // --- K-PAY ---
-const paymentIntentTable = backend.data.resources.tables['PaymentIntent'];
-const balanceTable = backend.data.resources.tables['Balance'];
-const transactionTable = backend.data.resources.tables['Transaction'];
+const kpayWebhookLambda = backend.kpayWebhook.resources.lambda as lambda.Function; // NOUVEAU
 
-paymentIntentTable.grantReadWriteData(backend.kpayWebhook.resources.lambda);
-balanceTable.grantReadWriteData(backend.kpayWebhook.resources.lambda);
-transactionTable.grantReadWriteData(backend.kpayWebhook.resources.lambda);
+paymentIntentTable.grantReadWriteData(kpayWebhookLambda);
+balanceTable.grantReadWriteData(kpayWebhookLambda);
+transactionTable.grantReadWriteData(kpayWebhookLambda);
 
-backend.kpayWebhook.resources.lambda.addEnvironment('PAYMENT_INTENT_TABLE_NAME', paymentIntentTable.tableName);
-backend.kpayWebhook.resources.lambda.addEnvironment('BALANCE_TABLE_NAME', balanceTable.tableName);
-backend.kpayWebhook.resources.lambda.addEnvironment('TRANSACTION_TABLE_NAME', transactionTable.tableName);
+kpayWebhookLambda.addEnvironment('PAYMENT_INTENT_TABLE_NAME', paymentIntentTable.tableName);
+kpayWebhookLambda.addEnvironment('BALANCE_TABLE_NAME', balanceTable.tableName);
+kpayWebhookLambda.addEnvironment('TRANSACTION_TABLE_NAME', transactionTable.tableName);
 
-const webhookUrl = backend.kpayWebhook.resources.lambda.addFunctionUrl({
+const webhookUrl = kpayWebhookLambda.addFunctionUrl({
   authType: FunctionUrlAuthType.NONE,
 });
 
 // --- My-CoolPay ---
-const coolPayIntentTable = backend.data.resources.tables['CoolPayIntent'];
-const balanceTable2 = backend.data.resources.tables['Balance'];
-const transactionTable2 = backend.data.resources.tables['Transaction'];
+const coolPayWebhookLambda = backend.coolPayWebhook.resources.lambda as lambda.Function; // NOUVEAU
 
-coolPayIntentTable.grantReadWriteData(backend.coolPayWebhook.resources.lambda);
-balanceTable2.grantReadWriteData(backend.coolPayWebhook.resources.lambda);
-transactionTable2.grantReadWriteData(backend.coolPayWebhook.resources.lambda);
+coolPayIntentTable.grantReadWriteData(coolPayWebhookLambda);
+balanceTable2.grantReadWriteData(coolPayWebhookLambda);
+transactionTable2.grantReadWriteData(coolPayWebhookLambda);
 
-backend.coolPayWebhook.resources.lambda.addEnvironment('COOLPAY_INTENT_TABLE_NAME', coolPayIntentTable.tableName);
-backend.coolPayWebhook.resources.lambda.addEnvironment('BALANCE_TABLE_NAME', balanceTable2.tableName);
-backend.coolPayWebhook.resources.lambda.addEnvironment('TRANSACTION_TABLE_NAME', transactionTable2.tableName);
+coolPayWebhookLambda.addEnvironment('COOLPAY_INTENT_TABLE_NAME', coolPayIntentTable.tableName);
+coolPayWebhookLambda.addEnvironment('BALANCE_TABLE_NAME', balanceTable2.tableName);
+coolPayWebhookLambda.addEnvironment('TRANSACTION_TABLE_NAME', transactionTable2.tableName);
 
-const coolPayWebhookUrl = backend.coolPayWebhook.resources.lambda.addFunctionUrl({
+const coolPayWebhookUrl = coolPayWebhookLambda.addFunctionUrl({
   authType: FunctionUrlAuthType.NONE,
 });
+
+
 
 bucket.addToResourcePolicy(
   new iam.PolicyStatement({

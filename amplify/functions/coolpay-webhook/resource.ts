@@ -5,6 +5,6 @@ export const coolPayWebhook = defineFunction({
   entry: './handler.ts',
   resourceGroupName: 'data',
   environment: {
-    // Ajoute ici le secret de signature une fois trouvé sur le dashboard
-  },
+      MYCOOLPAY_PRIVATE_KEY: secret('MYCOOLPAY_PRIVATE_KEY'),
+    },
 });

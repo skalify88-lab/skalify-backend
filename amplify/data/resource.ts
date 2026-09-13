@@ -110,7 +110,7 @@ const schema = a.schema({
           allow.owner(),
         ]),
 
-    KpayPaymentResult: a.customType({ // NOUVEAU : type de retour simple, pas un vrai modèle persisté par la fonction
+    KpayPaymentResult: a.customType({
       externalId: a.string().required(),
       kpayPaymentId: a.string().required(),
       amount: a.float().required(),
@@ -130,6 +130,7 @@ const schema = a.schema({
           provider: a.string().required(),
           status: a.enum(['PENDING', 'COMPLETED', 'FAILED', 'CANCELLED']),
           failureReason: a.string(),
+      buyerSub: a.string().required(),
         })
         .authorization((allow) => [
             allow.ownerDefinedIn('buyerOwner'),
@@ -158,6 +159,7 @@ const schema = a.schema({
           operator: a.string().required(),
           status: a.enum(['PENDING', 'COMPLETED', 'FAILED', 'CANCELLED']),
           failureReason: a.string(),
+          buyerSub: a.string().required(),
         })
         .authorization((allow) => [
           allow.ownerDefinedIn('buyerOwner'),

@@ -8,3 +8,5 @@ export const coolPayWebhook = defineFunction({
       MYCOOLPAY_PRIVATE_KEY: secret('MYCOOLPAY_PRIVATE_KEY'),
     },
 });
+
+

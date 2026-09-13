@@ -72,7 +72,7 @@ export const handler = async (event: any) => {
       TableName: balanceTable,
       FilterExpression: '#owner = :owner',
       ExpressionAttributeNames: { '#owner': 'owner' },
-      ExpressionAttributeValues: { ':owner': intent.buyerOwner },
+      ExpressionAttributeValues: { ':owner': realOwner },
     }));
     const balance = balanceScan.Items?.[0];
 
@@ -86,7 +86,7 @@ export const handler = async (event: any) => {
     } else {
       await ddb.send(new PutCommand({
         TableName: balanceTable,
-        Item: { id: randomUUID(), owner: intent.buyerOwner, amount: transaction_amount, currency: 'XAF', __typename: 'Balance' },
+        Item: { id: randomUUID(), owner: realOwner, amount: transaction_amount, currency: 'XAF', __typename: 'Balance' },
       }));
     }
 

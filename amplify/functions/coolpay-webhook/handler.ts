@@ -69,44 +69,44 @@ export const handler = async (event: any) => {
 
   if (transaction_status === 'SUCCESS') {
 
-    const realOwner = `${intent.buyerSub}::${intent.buyerOwner}`;
+      const realOwner = `${intent.buyerSub}::${intent.buyerOwner}`;
 
-    const balanceScan = await ddb.send(new ScanCommand({
-      TableName: coolPayIntentTable,
-      FilterExpression: '#owner = :owner',
-      ExpressionAttributeNames: { '#owner': 'owner' },
-      ExpressionAttributeValues: { ':owner': realOwner },
-    }));
-    const balance = balanceScan.Items?.[0];
-
-    if (balance) {
-      await ddb.send(new UpdateCommand({
-        TableName: balanceTable,
-        Key: { id: balance.id },
-        UpdateExpression: 'SET amount = :newAmount',
-        ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + transaction_amount },
+      const balanceScan = await ddb.send(new ScanCommand({
+        TableName: balanceTable, // NOUVEAU : balanceTable, pas paymentIntentTable
+        FilterExpression: '#owner = :owner',
+        ExpressionAttributeNames: { '#owner': 'owner' },
+        ExpressionAttributeValues: { ':owner': realOwner },
       }));
-    } else {
+      const balance = balanceScan.Items?.[0];
+
+      if (balance) {
+        await ddb.send(new UpdateCommand({
+          TableName: balanceTable,
+          Key: { id: balance.id },
+          UpdateExpression: 'SET amount = :newAmount',
+          ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + transaction_amount },
+        }));
+      } else {
+        await ddb.send(new PutCommand({
+          TableName: balanceTable,
+          Item: { id: randomUUID(), owner: realOwner, amount: transaction_amount, currency: 'XAF', __typename: 'Balance' },
+        }));
+      }
+
       await ddb.send(new PutCommand({
-        TableName: balanceTable,
-        Item: { id: randomUUID(), owner: realOwner, amount: transaction_amount, currency: 'XAF', __typename: 'Balance' },
+        TableName: transactionTable,
+        Item: {
+          id: randomUUID(),
+          owner: realOwner, // NOUVEAU : realOwner, pas intent.buyerOwner
+          balanceId: balance?.id ?? '',
+          amount: transaction_amount,
+          type: 'CREDIT',
+          currency: 'XAF',
+          reason: 'Recharge Mobile Money (My-CoolPay)',
+          createdAt: new Date().toISOString(),
+          __typename: 'Transaction',
+        },
       }));
-    }
-
-    await ddb.send(new PutCommand({
-      TableName: transactionTable,
-      Item: {
-        id: randomUUID(),
-        owner: intent.buyerOwner,
-        balanceId: balance?.id ?? '',
-        amount: transaction_amount,
-        type: 'CREDIT',
-        currency: 'XAF',
-        reason: 'Recharge Mobile Money (My-CoolPay)',
-        createdAt: new Date().toISOString(),
-        __typename: 'Transaction',
-      },
-    }));
   }
 
   return { statusCode: 200, body: 'OK' };

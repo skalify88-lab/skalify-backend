@@ -47,8 +47,11 @@ export const handler = async (event: any) => {
   }));
 
   if (status === 'COMPLETED') {
+
+    const realOwner = `${intent.buyerSub}::${intent.buyerOwner}`;
+
     const balanceScan = await ddb.send(new ScanCommand({
-      TableName: balanceTable,
+      TableName: paymentIntentTable,
       FilterExpression: '#owner = :owner',
       ExpressionAttributeNames: { '#owner': 'owner' },
       ExpressionAttributeValues: { ':owner': realOwner },

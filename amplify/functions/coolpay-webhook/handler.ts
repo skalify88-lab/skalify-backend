@@ -67,9 +67,12 @@ export const handler = async (event: any) => {
     ExpressionAttributeValues: { ':status': transaction_status, ':ref': transaction_ref },
   }));
 
-  if (transaction_status === 'SUCCESS') { // NOUVEAU : "SUCCESS", pas "COMPLETED" comme K-PAY — nomenclature différente
+  if (transaction_status === 'SUCCESS') {
+
+    const realOwner = `${intent.buyerSub}::${intent.buyerOwner}`;
+
     const balanceScan = await ddb.send(new ScanCommand({
-      TableName: balanceTable,
+      TableName: coolPayIntentTable,
       FilterExpression: '#owner = :owner',
       ExpressionAttributeNames: { '#owner': 'owner' },
       ExpressionAttributeValues: { ':owner': realOwner },

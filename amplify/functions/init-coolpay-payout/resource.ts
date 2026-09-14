@@ -8,5 +8,8 @@ export const initCoolPayPayout = defineFunction({
   environment: {
     MYCOOLPAY_PUBLIC_KEY: secret('MYCOOLPAY_PUBLIC_KEY'),
     MYCOOLPAY_PRIVATE_KEY: secret('MYCOOLPAY_PRIVATE_KEY'),
+    STATIC_IP_PROXY_URL: secret('STATIC_IP_PROXY_URL'),
   },
 });
+
+

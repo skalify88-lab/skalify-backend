@@ -2,6 +2,7 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 import { initKpayPayment } from '../functions/init-kpay-payment/resource';
 import { kpayWebhook } from '../functions/kpay-webhook/resource';
 import { initCoolPayPayment } from '../functions/init-coolpay-payment/resource';
+import { initCoolPayPayout } from '../functions/init-coolpay-payout/resource';
 
 const schema = a.schema({
 
@@ -185,6 +186,40 @@ const schema = a.schema({
         .authorization((allow) => [allow.authenticated('identityPool')])
         .handler(a.handler.function(initCoolPayPayment)),
 
+
+    CoolPayPayoutIntent: a
+        .model({
+          id: a.id(),
+          buyerOwner: a.string().required(),
+          buyerSub: a.string().required(),
+          appTransactionRef: a.string().required(),
+          transactionRef: a.string(),
+          amount: a.float().required(),
+          phoneNumber: a.string().required(),
+          status: a.enum(['PENDING', 'SUCCESS', 'FAILED', 'CANCELED']),
+          failureReason: a.string(),
+        })
+        .authorization((allow) => [
+          allow.ownerDefinedIn('buyerOwner'),
+        ]),
+
+    CoolPayPayoutResult: a.customType({
+      appTransactionRef: a.string().required(),
+      transactionRef: a.string(),
+      amount: a.float().required(),
+      phoneNumber: a.string().required(),
+      status: a.string().required(),
+    }),
+
+    initCoolPayPayoutMutation: a
+        .mutation()
+        .arguments({
+          amount: a.float().required(),
+          phoneNumber: a.string().required(),
+        })
+        .returns(a.ref('CoolPayPayoutResult'))
+        .authorization((allow) => [allow.authenticated('identityPool')])
+        .handler(a.handler.function(initCoolPayPayout)),
 
     Order: a
         .model({

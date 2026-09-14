@@ -109,5 +109,63 @@ export const handler = async (event: any) => {
       }));
   }
 
+
+  if (transaction_type === 'PAYOUT' && (transaction_status === 'FAILED' || transaction_status === 'CANCELED')) {
+    // NOUVEAU : le solde a déjà été débité de façon optimiste côté client — on le rembourse si le retrait échoue
+    const payoutIntentTable = requireEnv('COOLPAY_PAYOUT_INTENT_TABLE_NAME');
+
+    const payoutScan = await ddb.send(new ScanCommand({
+      TableName: payoutIntentTable,
+      FilterExpression: 'appTransactionRef = :ref',
+      ExpressionAttributeValues: { ':ref': app_transaction_ref },
+    }));
+    const payoutIntent = payoutScan.Items?.[0];
+
+    if (payoutIntent) {
+      await ddb.send(new UpdateCommand({
+        TableName: payoutIntentTable,
+        Key: { id: payoutIntent.id },
+        UpdateExpression: 'SET #status = :status',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: { ':status': transaction_status },
+      }));
+
+      const realOwner = `${payoutIntent.buyerSub}::${payoutIntent.buyerOwner}`;
+
+      const balanceScan = await ddb.send(new ScanCommand({
+        TableName: balanceTable,
+        FilterExpression: '#owner = :owner',
+        ExpressionAttributeNames: { '#owner': 'owner' },
+        ExpressionAttributeValues: { ':owner': realOwner },
+      }));
+      const balance = balanceScan.Items?.[0];
+
+      if (balance) {
+        await ddb.send(new UpdateCommand({
+          TableName: balanceTable,
+          Key: { id: balance.id },
+          UpdateExpression: 'SET amount = :newAmount',
+          ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + payoutIntent.amount },
+        }));
+
+        await ddb.send(new PutCommand({
+          TableName: transactionTable,
+          Item: {
+            id: randomUUID(),
+            owner: realOwner,
+            balanceId: balance.id,
+            amount: payoutIntent.amount,
+            type: 'CREDIT',
+            currency: 'XAF',
+            reason: 'Remboursement retrait échoué (My-CoolPay)',
+            createdAt: new Date().toISOString(),
+            __typename: 'Transaction',
+          },
+        }));
+      }
+    }
+  }
+
+
   return { statusCode: 200, body: 'OK' };
 };

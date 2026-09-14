@@ -8,6 +8,8 @@ import { initKpayPayment } from './functions/init-kpay-payment/resource';
 import { kpayWebhook } from './functions/kpay-webhook/resource';
 import { initCoolPayPayment } from './functions/init-coolpay-payment/resource';
 import { coolPayWebhook } from './functions/coolpay-webhook/resource';
+import { initCoolPayPayout } from './functions/init-coolpay-payout/resource';
+
 
 const backend = defineBackend({
   auth,
@@ -67,6 +69,13 @@ bucket.addToResourcePolicy(
     resources: [`${bucket.bucketArn}/articles/*`],
   })
 );
+
+// ---- Retrait CoolPay ----
+const coolPayPayoutIntentTable = backend.data.resources.tables['CoolPayPayoutIntent'];
+coolPayPayoutIntentTable.grantReadWriteData(coolPayWebhookLambda);
+coolPayWebhookLambda.addEnvironment('COOLPAY_PAYOUT_INTENT_TABLE_NAME', coolPayPayoutIntentTable.tableName);
+
+
 
 backend.addOutput({
   custom: {

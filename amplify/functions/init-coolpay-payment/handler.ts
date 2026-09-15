@@ -18,7 +18,7 @@ export const handler: Schema['initCoolPayPaymentMutation']['functionHandler'] = 
       body: JSON.stringify({
         transaction_amount: amount,
         transaction_currency: 'XAF',
-        transaction_reason: '-- Recharge S.Kalify | Simplify Shopping --',
+        transaction_reason: 'Recharge S.Kalify',
         app_transaction_ref: appTransactionRef,
         customer_phone_number: phoneNumber,
         customer_name: 'Client S.Kalify', // ⚠️ à affiner si besoin plus tard

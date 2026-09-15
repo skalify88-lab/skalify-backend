@@ -83,6 +83,7 @@ export const handler = async (event: any) => {
           currency: 'XAF',
           reason: 'Recharge Mobile Money (K-PAY)',
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           __typename: 'Transaction',
         },
       }));

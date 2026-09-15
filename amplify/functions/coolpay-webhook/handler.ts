@@ -104,6 +104,7 @@ export const handler = async (event: any) => {
           currency: 'XAF',
           reason: 'Recharge Mobile Money (My-CoolPay)',
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           __typename: 'Transaction',
         },
       }));
@@ -159,6 +160,7 @@ export const handler = async (event: any) => {
             currency: 'XAF',
             reason: 'Remboursement retrait échoué (My-CoolPay)',
             createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
             __typename: 'Transaction',
           },
         }));

@@ -8,8 +8,6 @@ export const handler: Schema['initCoolPayPayoutMutation']['functionHandler'] = a
 
   const appTransactionRef = `SKALIFY-OUT-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  const proxyAgent = new ProxyAgent(env.STATIC_IP_PROXY_URL);
-
   const response = await fetch(
     `https://my-coolpay.com/api/${env.MYCOOLPAY_PUBLIC_KEY}/payout`,
     {

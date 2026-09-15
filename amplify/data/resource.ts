@@ -3,6 +3,10 @@ import { initKpayPayment } from '../functions/init-kpay-payment/resource';
 import { kpayWebhook } from '../functions/kpay-webhook/resource';
 import { initCoolPayPayment } from '../functions/init-coolpay-payment/resource';
 import { initCoolPayPayout } from '../functions/init-coolpay-payout/resource';
+import { checkCoolPayPayoutStatus } from '../functions/check-coolpay-payout-status/resource';
+
+
+
 
 const schema = a.schema({
 
@@ -216,10 +220,22 @@ const schema = a.schema({
         .arguments({
           amount: a.float().required(),
           phoneNumber: a.string().required(),
+          appTransactionRef: a.string().required(),
         })
         .returns(a.ref('CoolPayPayoutResult'))
         .authorization((allow) => [allow.authenticated('identityPool')])
         .handler(a.handler.function(initCoolPayPayout)),
+
+
+    checkCoolPayPayoutStatusMutation: a
+        .mutation()
+        .arguments({
+          appTransactionRef: a.string().required(),
+        })
+        .returns(a.ref('CoolPayPayoutResult'))
+        .authorization((allow) => [allow.authenticated('identityPool')])
+        .handler(a.handler.function(checkCoolPayPayoutStatus)),
+
 
     Order: a
         .model({

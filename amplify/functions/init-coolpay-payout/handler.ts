@@ -5,8 +5,6 @@ import { ProxyAgent } from 'undici';
 export const handler: Schema['initCoolPayPayoutMutation']['functionHandler'] = async (event) => {
   const { amount, phoneNumber, appTransactionRef } = event.arguments;
 
-  const appTransactionRef = `SKALIFY-OUT-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
   const proxyAgent = new ProxyAgent(env.STATIC_IP_PROXY_URL);
 
   const response = await fetch(

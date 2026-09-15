@@ -20,7 +20,7 @@ const backend = defineBackend({
   kpayWebhook,
   initCoolPayPayment,
   coolPayWebhook,
-  checkCoolPayPayoutStatus
+  checkCoolPayPayoutStatus,
 });
 
 // Accès public en lecture pour les images d'articles

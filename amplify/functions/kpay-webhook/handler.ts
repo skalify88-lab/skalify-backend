@@ -76,7 +76,7 @@ export const handler = async (event: any) => {
         TableName: transactionTable,
         Item: {
           id: randomUUID(),
-          owner: realOwner, // NOUVEAU : realOwner, pas intent.buyerOwner
+          owner: realOwner,
           balanceId: balance?.id ?? '',
           amount: intent.amount,
           type: 'CREDIT',

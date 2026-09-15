@@ -39,6 +39,18 @@ export const handler: Schema['initCoolPayPayoutMutation']['functionHandler'] = a
     throw new Error(data.message || 'Erreur lors du retrait My-CoolPay');
   }
 
+  const proxyAgent = new ProxyAgent(env.STATIC_IP_PROXY_URL);
+
+  try {
+    const ipCheck = await fetch('https://api.ipify.org?format=json', {
+      dispatcher: proxyAgent,
+    } as any);
+    const ipData = await ipCheck.json();
+    console.log('IP sortante réelle via le proxy :', ipData.ip);
+  } catch (e) {
+    console.error('Erreur test IP proxy :', e);
+  }
+
   return {
     appTransactionRef,
     transactionRef: data.transaction_ref ?? null,

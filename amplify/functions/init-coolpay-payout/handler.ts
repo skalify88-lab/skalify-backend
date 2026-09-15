@@ -22,7 +22,6 @@ export const handler: Schema['initCoolPayPayoutMutation']['functionHandler'] = a
         transaction_reason: 'Retrait S.Kalify',
         transaction_operator: 'CM_OM',
         app_transaction_ref: appTransactionRef,
-        app_transaction_ref: appTransactionRef,
         customer_phone_number: phoneNumber,
         customer_name: 'Client S.Kalify',
         customer_lang: 'fr',

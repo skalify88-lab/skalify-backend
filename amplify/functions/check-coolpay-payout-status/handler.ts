@@ -6,30 +6,43 @@ export const handler: Schema['checkCoolPayPayoutStatusMutation']['functionHandle
   const { appTransactionRef } = event.arguments;
 
   const proxyAgent = new ProxyAgent(env.STATIC_IP_PROXY_URL);
+  const controller = new AbortController(); // NOUVEAU
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // NOUVEAU
 
-  const response = await fetch(
-    `https://my-coolpay.com/api/${env.MYCOOLPAY_PUBLIC_KEY}/checkStatus/${appTransactionRef}`,
-    {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'X-PRIVATE-KEY': env.MYCOOLPAY_PRIVATE_KEY,
-      },
-      dispatcher: proxyAgent,
-    } as any
-  );
+  try {
+    const response = await fetch(
+      `https://my-coolpay.com/api/${env.MYCOOLPAY_PUBLIC_KEY}/checkStatus/${appTransactionRef}`,
+      {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'X-PRIVATE-KEY': env.MYCOOLPAY_PRIVATE_KEY,
+        },
+        dispatcher: proxyAgent,
+        signal: controller.signal, // NOUVEAU
+      } as any
+    );
 
-  const data = await response.json();
+    clearTimeout(timeoutId); // NOUVEAU
 
-  if (!response.ok) {
-    throw new Error(data.message || 'Impossible de vérifier le statut du retrait');
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Impossible de vérifier le statut du retrait');
+    }
+
+    return {
+      appTransactionRef: data.app_transaction_ref ?? appTransactionRef,
+      transactionRef: data.transaction_ref ?? null,
+      amount: data.transaction_amount,
+      phoneNumber: data.customer_phone_number ?? '',
+      status: data.status,
+    };
+  } catch (e: any) {
+    clearTimeout(timeoutId); // NOUVEAU
+    if (e.name === 'AbortError') { // NOUVEAU
+      throw new Error('Le proxy n\'a pas répondu à temps lors de la vérification');
+    }
+    throw e;
   }
-
-  return {
-    appTransactionRef: data.app_transaction_ref ?? appTransactionRef,
-    transactionRef: data.transaction_ref ?? null,
-    amount: data.transaction_amount,
-    phoneNumber: data.customer_phone_number ?? '',
-    status: data.status,
-  };
 };

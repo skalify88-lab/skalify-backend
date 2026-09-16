@@ -23,6 +23,7 @@ const backend = defineBackend({
   kpayWebhook,
   initCoolPayPayment,
   coolPayWebhook,
+  initCoolPayPayout,
   checkCoolPayPayoutStatus,
   adminBlockUser,
   adminSetMaintenanceMode,
@@ -84,14 +85,6 @@ coolPayPayoutIntentTable.grantReadWriteData(coolPayWebhookLambda);
 coolPayWebhookLambda.addEnvironment('COOLPAY_PAYOUT_INTENT_TABLE_NAME', coolPayPayoutIntentTable.tableName);
 
 
-
-backend.addOutput({
-  custom: {
-    kpayWebhookUrl: webhookUrl.url,
-    coolPayWebhookUrl: coolPayWebhookUrl.url,
-  },
-});
-
 // Autoriser explicitement l'accès public par politique (nécessaire en plus du bucket policy)
 const cfnBucket = bucket.node.defaultChild as s3.CfnBucket;
 cfnBucket.publicAccessBlockConfiguration = {
@@ -100,3 +93,56 @@ cfnBucket.publicAccessBlockConfiguration = {
   ignorePublicAcls: true,
   restrictPublicBuckets: false,
 };
+
+
+const userProfileTable = backend.data.resources.tables['UserProfile'];
+const appConfigTable = backend.data.resources.tables['AppConfig'];
+const userPoolId = backend.auth.resources.userPool.userPoolId;
+const userPoolClientId = backend.auth.resources.userPoolClient.userPoolClientId;
+
+const adminBlockUserLambda = backend.adminBlockUser.resources.lambda as lambda.Function;
+userProfileTable.grantReadWriteData(adminBlockUserLambda);
+adminBlockUserLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
+adminBlockUserLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
+adminBlockUserLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+const adminBlockUserUrl = adminBlockUserLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+
+const adminSetMaintenanceModeLambda = backend.adminSetMaintenanceMode.resources.lambda as lambda.Function;
+userProfileTable.grantReadWriteData(adminSetMaintenanceModeLambda);
+appConfigTable.grantReadWriteData(adminSetMaintenanceModeLambda);
+adminSetMaintenanceModeLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
+adminSetMaintenanceModeLambda.addEnvironment('APP_CONFIG_TABLE_NAME', appConfigTable.tableName);
+adminSetMaintenanceModeLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
+adminSetMaintenanceModeLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+const adminSetMaintenanceModeUrl = adminSetMaintenanceModeLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+
+const adminGetCoolPayBalanceLambda = backend.adminGetCoolPayBalance.resources.lambda as lambda.Function;
+userProfileTable.grantReadWriteData(adminGetCoolPayBalanceLambda);
+adminGetCoolPayBalanceLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
+adminGetCoolPayBalanceLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
+adminGetCoolPayBalanceLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+adminGetCoolPayBalanceLambda.addEnvironment('MYCOOLPAY_PUBLIC_KEY', /* réutilise le secret existant si besoin */ '');
+const adminGetCoolPayBalanceUrl = adminGetCoolPayBalanceLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+
+
+
+backend.addOutput({
+  custom: {
+    kpayWebhookUrl: webhookUrl.url,
+    coolPayWebhookUrl: coolPayWebhookUrl.url,
+    adminBlockUserUrl: adminBlockUserUrl.url,
+    adminSetMaintenanceModeUrl: adminSetMaintenanceModeUrl.url,
+    adminGetCoolPayBalanceUrl: adminGetCoolPayBalanceUrl.url,
+  },
+});
+
+
+
+
+
+
+
+
+
+
+

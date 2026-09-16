@@ -42,9 +42,9 @@ export const handler = async (event: any) => {
     await verifyAdmin(event.headers?.authorization || event.headers?.Authorization);
 
     const publicKey = requireEnv('MYCOOLPAY_PUBLIC_KEY');
-    const privateKey = requireEnv('MYCOOLPAY_PRIVATE_KEY'); // NOUVEAU : à ajouter à l'environnement, voir note plus bas
+    const privateKey = requireEnv('MYCOOLPAY_PRIVATE_KEY');
 
-    const response = await fetch(`https://my-coolpay.com/api/${publicKey}/getBalance`, {
+    const response = await fetch(`https://my-coolpay.com/api/${publicKey}/balance`, { // NOUVEAU : /balance, pas /getBalance
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -54,7 +54,7 @@ export const handler = async (event: any) => {
 
     const data = await response.json();
 
-    if (!response.ok) {
+    if (!response.ok || data.status !== 'success') { // NOUVEAU : vérifie aussi data.status, cohérent avec la réponse réelle
       throw new Error(data.message || 'Impossible de récupérer le solde');
     }
 

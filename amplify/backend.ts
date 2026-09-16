@@ -10,6 +10,9 @@ import { initCoolPayPayment } from './functions/init-coolpay-payment/resource';
 import { coolPayWebhook } from './functions/coolpay-webhook/resource';
 import { initCoolPayPayout } from './functions/init-coolpay-payout/resource';
 import { checkCoolPayPayoutStatus } from './functions/check-coolpay-payout-status/resource';
+import { adminBlockUser } from './functions/admin-block-user/resource';
+import { adminSetMaintenanceMode } from './functions/admin-set-maintenance-mode/resource';
+import { adminGetCoolPayBalance } from './functions/admin-get-coolpay-balance/resource';
 
 
 const backend = defineBackend({
@@ -21,6 +24,9 @@ const backend = defineBackend({
   initCoolPayPayment,
   coolPayWebhook,
   checkCoolPayPayoutStatus,
+  adminBlockUser,
+  adminSetMaintenanceMode,
+  adminGetCoolPayBalance,
 });
 
 // Accès public en lecture pour les images d'articles

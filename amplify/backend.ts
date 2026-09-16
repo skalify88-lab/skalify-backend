@@ -13,7 +13,6 @@ import { checkCoolPayPayoutStatus } from './functions/check-coolpay-payout-statu
 import { adminBlockUser } from './functions/admin-block-user/resource';
 import { adminSetMaintenanceMode } from './functions/admin-set-maintenance-mode/resource';
 import { adminGetCoolPayBalance } from './functions/admin-get-coolpay-balance/resource';
-import { secret } from '@aws-amplify/backend';
 
 
 const backend = defineBackend({
@@ -122,7 +121,6 @@ userProfileTable.grantReadWriteData(adminGetCoolPayBalanceLambda);
 adminGetCoolPayBalanceLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
 adminGetCoolPayBalanceLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
 adminGetCoolPayBalanceLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
-adminGetCoolPayBalanceLambda.addEnvironment('MYCOOLPAY_PUBLIC_KEY', /*  */);
 const adminGetCoolPayBalanceUrl = adminGetCoolPayBalanceLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
 
 

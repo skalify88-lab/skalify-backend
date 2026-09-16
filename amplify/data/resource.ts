@@ -4,11 +4,105 @@ import { kpayWebhook } from '../functions/kpay-webhook/resource';
 import { initCoolPayPayment } from '../functions/init-coolpay-payment/resource';
 import { initCoolPayPayout } from '../functions/init-coolpay-payout/resource';
 import { checkCoolPayPayoutStatus } from '../functions/check-coolpay-payout-status/resource';
-
-
+import { adminBlockUser } from '../functions/admin-block-user/resource';
+import { adminSetMaintenanceMode } from '../functions/admin-set-maintenance-mode/resource';
+import { adminGetCoolPayBalance } from '../functions/admin-get-coolpay-balance/resource';
 
 
 const schema = a.schema({
+
+    UserProfile: a
+    .model({
+      id: a.id(),
+      username: a.string().required(),
+      fullName: a.string().required(),
+      phoneNumber: a.string().required(),
+      profilePhotoUrl: a.string(),
+      accountType: a.enum(['PARTICULIER', 'ENTREPRISE']),
+      city: a.string(),
+      region: a.string(),
+      isAdmin: a.boolean().default(false).authorization((allow) => [allow.owner().to(['read'])]),
+      isBlocked: a.boolean().default(false).authorization((allow) => [allow.owner().to(['read'])]),
+      blockedReason: a.string().authorization((allow) => [allow.owner().to(['read'])]),
+      blockedUntil: a.datetime().authorization((allow) => [allow.owner().to(['read'])]),
+    })
+    .authorization((allow) => [
+      allow.owner(),
+    ]),
+
+
+    AppConfig: a
+        .model({
+          id: a.id(),
+          maintenanceMode: a.boolean().default(false),
+          maintenanceMessage: a.string(),
+        })
+        .authorization((allow) => [
+          allow.authenticated().to(['read']),
+          allow.guest().to(['read']),
+        ]),
+
+    AdminActionResult: a.customType({
+      success: a.boolean().required(),
+      message: a.string(),
+    }),
+
+    adminBlockUserMutation: a
+        .mutation()
+        .arguments({
+          targetUserId: a.string().required(),
+          isBlocked: a.boolean().required(),
+          reason: a.string(),
+          blockedUntil: a.string(),
+        })
+        .returns(a.ref('AdminActionResult'))
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(adminBlockUser)),
+
+    adminSetMaintenanceModeMutation: a
+        .mutation()
+        .arguments({
+          enabled: a.boolean().required(),
+          message: a.string(),
+        })
+        .returns(a.ref('AdminActionResult'))
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(adminSetMaintenanceMode)),
+
+    CoolPayBalanceResult: a.customType({
+      balance: a.float().required(),
+    }),
+
+    adminGetCoolPayBalanceMutation: a
+        .mutation()
+        .arguments({})
+        .returns(a.ref('CoolPayBalanceResult'))
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(adminGetCoolPayBalance)),
+
+    Enterprise: a
+    .model({
+      id: a.id(),
+      name: a.string().required(),
+      logoUrl: a.string(),
+      bannerUrl: a.string(),
+      bio: a.string(),
+      phoneNumber: a.string(),
+      email: a.string(),
+      categories: a.string().array(),
+      openingHours: a.string(),
+      planRenewalDate: a.datetime(),
+      city: a.string(),
+      region: a.string(),
+      ownerUsername: a.string()
+    })
+    .authorization((allow) => [
+      allow.owner(),
+      allow.guest().to(['read']),
+      allow.authenticated().to(['read']),
+    ]),
+
+
 
   Article: a
       .model({
@@ -33,43 +127,6 @@ const schema = a.schema({
         allow.authenticated().to(['read']),
         allow.owner(),
       ]),
-
-    UserProfile: a
-    .model({
-      id: a.id(),
-      username: a.string().required(),
-      fullName: a.string().required(),
-      phoneNumber: a.string().required(),
-      profilePhotoUrl: a.string(),
-      accountType: a.enum(['PARTICULIER', 'ENTREPRISE']),
-      city: a.string(),
-      region: a.string(),
-    })
-    .authorization((allow) => [
-      allow.owner(),
-    ]),
-
-    Enterprise: a
-    .model({
-      id: a.id(),
-      name: a.string().required(),
-      logoUrl: a.string(),
-      bannerUrl: a.string(),
-      bio: a.string(),
-      phoneNumber: a.string(),
-      email: a.string(),
-      categories: a.string().array(),
-      openingHours: a.string(),
-      planRenewalDate: a.datetime(),
-      city: a.string(),
-      region: a.string(),
-      ownerUsername: a.string()
-    })
-    .authorization((allow) => [
-      allow.owner(),
-      allow.guest().to(['read']),
-      allow.authenticated().to(['read']),
-    ]),
 
 
     CartItem: a

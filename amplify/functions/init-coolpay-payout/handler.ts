@@ -30,11 +30,11 @@ export const handler: Schema['initCoolPayPayoutMutation']['functionHandler'] = a
           customer_lang: 'fr',
         }),
         dispatcher: proxyAgent,
-        signal: controller.signal, // NOUVEAU
+        signal: controller.signal,
       } as any
     );
 
-    clearTimeout(timeoutId); // NOUVEAU
+    clearTimeout(timeoutId);
 
     const data = await response.json();
 
@@ -50,8 +50,8 @@ export const handler: Schema['initCoolPayPayoutMutation']['functionHandler'] = a
       status: 'PENDING',
     };
   } catch (e: any) {
-    clearTimeout(timeoutId); // NOUVEAU
-    if (e.name === 'AbortError') { // NOUVEAU : message clair, distinct d'un vrai refus My-CoolPay
+    clearTimeout(timeoutId);
+    if (e.name === 'AbortError') {
       throw new Error('Le proxy n\'a pas répondu à temps — statut réellement inconnu, vérification nécessaire');
     }
     throw e;

@@ -21,10 +21,10 @@ const schema = a.schema({
       accountType: a.enum(['PARTICULIER', 'ENTREPRISE']),
       city: a.string(),
       region: a.string(),
-      isAdmin: a.boolean().default(false).authorization((allow) => [allow.owner().to(['read'])]),
-      isBlocked: a.boolean().default(false).authorization((allow) => [allow.owner().to(['read'])]),
-      blockedReason: a.string().authorization((allow) => [allow.owner().to(['read'])]),
-      blockedUntil: a.datetime().authorization((allow) => [allow.owner().to(['read'])]),
+      isAdmin: a.boolean().default(false).authorization((allow) => [allow.owner().to(['read', 'create'])]),
+      isBlocked: a.boolean().default(false).authorization((allow) => [allow.owner().to(['read', 'create'])]),
+      blockedReason: a.string().authorization((allow) => [allow.owner().to(['read', 'create'])]),
+      blockedUntil: a.datetime().authorization((allow) => [allow.owner().to(['read', 'create'])]),
     })
     .authorization((allow) => [
       allow.owner(),

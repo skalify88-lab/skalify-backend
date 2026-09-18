@@ -217,7 +217,7 @@ const schema = a.schema({
           operator: a.string().required(),
           appTransactionRef: a.string().required(),
         })
-        .returns(a.ref('KpayPaymentResult'))
+        .returns(a.ref('CoolPayInitResult'))
         .authorization((allow) => [allow.authenticated('identityPool')])
         .handler(a.handler.function(initCoolPayPayment)),
 
@@ -239,7 +239,8 @@ const schema = a.schema({
           allow.ownerDefinedIn('buyerOwner'),
         ]),
 
-    CoolPayInitResult: a.customType({
+
+    CoolPayInitResult: a.customType({ // NOUVEAU : manquait entièrement
       appTransactionRef: a.string().required(),
       transactionRef: a.string(),
       amount: a.float().required(),

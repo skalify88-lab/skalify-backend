@@ -37,6 +37,8 @@ async function verifyAdmin(authHeader: string | undefined) {
   }
 }
 
+
+
 export const handler = async (event: any) => {
   try {
     await verifyAdmin(event.headers?.authorization || event.headers?.Authorization);
@@ -44,25 +46,41 @@ export const handler = async (event: any) => {
     const publicKey = requireEnv('MYCOOLPAY_PUBLIC_KEY');
     const privateKey = requireEnv('MYCOOLPAY_PRIVATE_KEY');
 
-    const response = await fetch(`https://my-coolpay.com/api/${publicKey}/balance`, { // NOUVEAU : /balance, pas /getBalance
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'X-PRIVATE-KEY': privateKey,
-      },
-    });
+    const controller = new AbortController(); // NOUVEAU
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // NOUVEAU : 25s, sous le plafond des 30s d'AppSync
 
-    const data = await response.json();
+    try {
+      const response = await fetch(`https://my-coolpay.com/api/${publicKey}/balance`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'X-PRIVATE-KEY': privateKey,
+        },
+        signal: controller.signal, // NOUVEAU
+      });
 
-    if (!response.ok || data.status !== 'success') { // NOUVEAU : vérifie aussi data.status, cohérent avec la réponse réelle
-      throw new Error(data.message || 'Impossible de récupérer le solde');
+      clearTimeout(timeoutId); // NOUVEAU
+
+      const data = await response.json();
+
+      if (!response.ok || data.status !== 'success') {
+        throw new Error(data.message || 'Impossible de récupérer le solde');
+      }
+
+      return { statusCode: 200, body: JSON.stringify({ success: true, balance: data.balance }) };
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId); // NOUVEAU
+      if (fetchError.name === 'AbortError') { // NOUVEAU
+        throw new Error('My-CoolPay met trop de temps à répondre — réessayez dans un instant');
+      }
+      throw fetchError;
     }
-
-    return { statusCode: 200, body: JSON.stringify({ success: true, balance: data.balance }) };
   } catch (e: any) {
     return { statusCode: 403, body: JSON.stringify({ success: false, message: e.message }) };
   }
 };
+
+
 
 
 

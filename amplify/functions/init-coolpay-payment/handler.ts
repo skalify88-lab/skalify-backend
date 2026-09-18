@@ -4,8 +4,6 @@ import { env } from '$amplify/env/init-coolpay-payment';
 export const handler: Schema['initCoolPayPaymentMutation']['functionHandler'] = async (event) => {
   const { amount, phoneNumber, operator } = event.arguments;
 
-  const appTransactionRef = `SKALIFY-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
   const response = await fetch(
     `https://my-coolpay.com/api/${env.MYCOOLPAY_PUBLIC_KEY}/payin`,
     {

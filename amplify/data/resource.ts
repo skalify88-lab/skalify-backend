@@ -209,6 +209,18 @@ const schema = a.schema({
         .authorization((allow) => [allow.authenticated('identityPool')])
         .handler(a.handler.function(initKpayPayment)),
 
+    initCoolPayPaymentMutation: a
+        .mutation()
+        .arguments({
+          amount: a.float().required(),
+          phoneNumber: a.string().required(),
+          operator: a.string().required(),
+          appTransactionRef: a.string().required(),
+        })
+        .returns(a.ref('KpayPaymentResult'))
+        .authorization((allow) => [allow.authenticated('identityPool')])
+        .handler(a.handler.function(initCoolPayPayment)),
+
 
     CoolPayIntent: a
         .model({

@@ -111,8 +111,8 @@ export const handler = async (event: any) => {
   }
 
 
-  if (transaction_type === 'PAYOUT' && (transaction_status === 'FAILED' || transaction_status === 'CANCELED')) {
-    // NOUVEAU : le solde a déjà été débité de façon optimiste côté client — on le rembourse si le retrait échoue
+
+  if (transaction_type === 'PAYOUT') {
     const payoutIntentTable = requireEnv('COOLPAY_PAYOUT_INTENT_TABLE_NAME');
 
     const payoutScan = await ddb.send(new ScanCommand({
@@ -123,49 +123,55 @@ export const handler = async (event: any) => {
     const payoutIntent = payoutScan.Items?.[0];
 
     if (payoutIntent) {
-      await ddb.send(new UpdateCommand({
+      await ddb.send(new UpdateCommand({ // NOUVEAU : met à jour le statut dans TOUS les cas, pas seulement l'échec
         TableName: payoutIntentTable,
         Key: { id: payoutIntent.id },
-        UpdateExpression: 'SET #status = :status',
+        UpdateExpression: 'SET #status = :status, transactionRef = :ref',
         ExpressionAttributeNames: { '#status': 'status' },
-        ExpressionAttributeValues: { ':status': transaction_status },
+        ExpressionAttributeValues: { ':status': transaction_status, ':ref': transaction_ref },
       }));
 
-      const realOwner = `${payoutIntent.buyerSub}::${payoutIntent.buyerOwner}`;
+      if (transaction_status === 'FAILED' || transaction_status === 'CANCELED') {
+        const realOwner = `${payoutIntent.buyerSub}::${payoutIntent.buyerOwner}`;
 
-      const balanceScan = await ddb.send(new ScanCommand({
-        TableName: balanceTable,
-        FilterExpression: '#owner = :owner',
-        ExpressionAttributeNames: { '#owner': 'owner' },
-        ExpressionAttributeValues: { ':owner': realOwner },
-      }));
-      const balance = balanceScan.Items?.[0];
-
-      if (balance) {
-        await ddb.send(new UpdateCommand({
+        const balanceScan = await ddb.send(new ScanCommand({
           TableName: balanceTable,
-          Key: { id: balance.id },
-          UpdateExpression: 'SET amount = :newAmount',
-          ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + payoutIntent.amount },
+          FilterExpression: '#owner = :owner',
+          ExpressionAttributeNames: { '#owner': 'owner' },
+          ExpressionAttributeValues: { ':owner': realOwner },
         }));
+        const balance = balanceScan.Items?.[0];
 
-        await ddb.send(new PutCommand({
-          TableName: transactionTable,
-          Item: {
-            id: randomUUID(),
-            owner: realOwner,
-            balanceId: balance.id,
-            amount: payoutIntent.amount,
-            type: 'CREDIT',
-            currency: 'XAF',
-            reason: 'Remboursement retrait échoué (My-CoolPay)',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            __typename: 'Transaction',
-          },
-        }));
+        if (balance) {
+          await ddb.send(new UpdateCommand({
+            TableName: balanceTable,
+            Key: { id: balance.id },
+            UpdateExpression: 'SET amount = :newAmount',
+            ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + payoutIntent.amount },
+          }));
+
+          await ddb.send(new PutCommand({
+            TableName: transactionTable,
+            Item: {
+              id: randomUUID(),
+              owner: realOwner,
+              balanceId: balance.id,
+              amount: payoutIntent.amount,
+              type: 'CREDIT',
+              currency: 'XAF',
+              reason: 'Remboursement retrait échoué (My-CoolPay)',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              __typename: 'Transaction',
+            },
+          }));
+        }
       }
+      // NOUVEAU : cas SUCCESS — rien de plus à faire ici, le statut est déjà mis à jour ci-dessus,
+      // c'est justement ce que le client va lire en interrogeant sa propre base
     }
+
+    return { statusCode: 200, body: 'OK' };
   }
 
 

@@ -248,16 +248,6 @@ const schema = a.schema({
       status: a.string().required(),
     }),
 
-    initCoolPayPaymentMutation: a
-        .mutation()
-        .arguments({
-          amount: a.float().required(),
-          phoneNumber: a.string().required(),
-          operator: a.string().required(),
-        })
-        .returns(a.ref('CoolPayInitResult'))
-        .authorization((allow) => [allow.authenticated('identityPool')])
-        .handler(a.handler.function(initCoolPayPayment)),
 
 
     CoolPayPayoutIntent: a

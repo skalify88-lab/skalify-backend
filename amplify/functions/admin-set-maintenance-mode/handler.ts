@@ -43,7 +43,7 @@ export const handler = async (event: any) => {
     await verifyAdmin(event.headers?.authorization || event.headers?.Authorization);
 
     const body = JSON.parse(event.body);
-    const { enabled, message } = body;
+    const { enabled, message, endTime } = body;
 
     const appConfigTable = requireEnv('APP_CONFIG_TABLE_NAME');
 
@@ -55,8 +55,8 @@ export const handler = async (event: any) => {
       await ddb.send(new UpdateCommand({
         TableName: appConfigTable,
         Key: { id: existing.id },
-        UpdateExpression: 'SET maintenanceMode = :mode, maintenanceMessage = :msg',
-        ExpressionAttributeValues: { ':mode': enabled, ':msg': message ?? null },
+        UpdateExpression: 'SET maintenanceMode = :mode, maintenanceMessage = :msg, maintenanceEndTime = :endTime',
+        ExpressionAttributeValues: { ':mode': enabled, ':msg': message ?? null, ':endTime': endTime ?? null },
       }));
     } else {
       await ddb.send(new PutCommand({
@@ -65,6 +65,7 @@ export const handler = async (event: any) => {
           id: randomUUID(),
           maintenanceMode: enabled,
           maintenanceMessage: message ?? null,
+          maintenanceEndTime: endTime ?? null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           __typename: 'AppConfig',
@@ -77,3 +78,6 @@ export const handler = async (event: any) => {
     return { statusCode: 403, body: JSON.stringify({ success: false, message: e.message }) };
   }
 };
+
+
+

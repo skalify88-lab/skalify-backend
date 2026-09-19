@@ -36,6 +36,7 @@ const schema = a.schema({
           id: a.id(),
           maintenanceMode: a.boolean().default(false),
           maintenanceMessage: a.string(),
+          maintenanceEndTime: a.datetime(),
         })
         .authorization((allow) => [
           allow.authenticated().to(['read']),

@@ -24,6 +24,7 @@ async function verifyAdmin(authHeader: string | undefined) {
   const payload = await verifier.verify(token);
   const username = payload['cognito:username'] as string;
 
+
   const userProfileTable = requireEnv('USER_PROFILE_TABLE_NAME');
   const scan = await ddb.send(new ScanCommand({
     TableName: userProfileTable,

@@ -135,6 +135,24 @@ adminSearchUsersLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
 const adminSearchUsersUrl = adminSearchUsersLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
 
 
+const platformBalanceTable = backend.data.resources.tables['PlatformBalance'];
+const platformTransactionTable = backend.data.resources.tables['PlatformTransaction'];
+
+// Ajoute aux deux webhooks existants (kpay et coolpay)
+platformBalanceTable.grantReadWriteData(kpayWebhookLambda);
+platformTransactionTable.grantReadWriteData(kpayWebhookLambda);
+kpayWebhookLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalanceTable.tableName);
+kpayWebhookLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
+
+platformBalanceTable.grantReadWriteData(coolPayWebhookLambda);
+platformTransactionTable.grantReadWriteData(coolPayWebhookLambda);
+coolPayWebhookLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalanceTable.tableName);
+coolPayWebhookLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
+
+
+
+
+
 
 backend.addOutput({
   custom: {

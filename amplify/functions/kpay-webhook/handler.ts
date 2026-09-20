@@ -47,6 +47,10 @@ export const handler = async (event: any) => {
   }));
 
   if (status === 'COMPLETED') {
+      const grossAmount = intent.amount;
+      const aggregatorFees = 0; // ⚠️ à confirmer avec K-PAY — pas de champ de frais connu dans leur callback actuel
+      const platformFees = Math.round(grossAmount * 0.01);
+      const netAmount = grossAmount - aggregatorFees - platformFees;
 
       const realOwner = `${intent.buyerSub}::${intent.buyerOwner}`;
 
@@ -78,6 +82,10 @@ export const handler = async (event: any) => {
           id: randomUUID(),
           owner: realOwner,
           balanceId: balance?.id ?? '',
+          amount: netAmount, // NOUVEAU : net
+          grossAmount, // NOUVEAU
+          aggregatorFees, // NOUVEAU
+          platformFees, // NOUVEAU
           amount: intent.amount,
           type: 'CREDIT',
           currency: 'XAF',
@@ -87,6 +95,46 @@ export const handler = async (event: any) => {
           __typename: 'Transaction',
         },
       }));
+
+
+      // NOUVEAU : crédite le solde S.Kalify de sa commission
+      const platformBalanceTable = requireEnv('PLATFORM_BALANCE_TABLE_NAME');
+      const platformTransactionTable = requireEnv('PLATFORM_TRANSACTION_TABLE_NAME');
+
+      const platformScan = await ddb.send(new ScanCommand({ TableName: platformBalanceTable }));
+      const platformBalance = platformScan.Items?.[0];
+
+      if (platformBalance) {
+        await ddb.send(new UpdateCommand({
+          TableName: platformBalanceTable,
+          Key: { id: platformBalance.id },
+          UpdateExpression: 'SET amount = :newAmount',
+          ExpressionAttributeValues: { ':newAmount': (platformBalance.amount ?? 0) + platformFees },
+        }));
+      } else {
+        await ddb.send(new PutCommand({
+          TableName: platformBalanceTable,
+          Item: { id: randomUUID(), amount: platformFees, currency: 'XAF', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), __typename: 'PlatformBalance' },
+        }));
+      }
+
+      await ddb.send(new PutCommand({
+        TableName: platformTransactionTable,
+        Item: {
+          id: randomUUID(),
+          amount: platformFees,
+          type: 'CREDIT',
+          source: 'DEPOSIT_FEE',
+          reason: `Commission dépôt — ${intent.buyerOwner}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          __typename: 'PlatformTransaction',
+        },
+      }));
+
+
+
+
   }
 
   return { statusCode: 200, body: 'OK' };

@@ -30,6 +30,7 @@ export const handler = async (event: any) => {
     transaction_operator,
     transaction_status,
     customer_phone_number,
+    transaction_fees,
     signature,
   } = payload;
 
@@ -173,6 +174,95 @@ export const handler = async (event: any) => {
 
     return { statusCode: 200, body: 'OK' };
   }
+
+
+
+  if (transaction_type === 'PAYIN' && transaction_status === 'SUCCESS') {
+    const grossAmount = transaction_amount;
+    const aggregatorFees = transaction_fees ?? 0; // NOUVEAU
+    const platformFees = Math.round(grossAmount * 0.01); // NOUVEAU : 1% fixe
+    const netAmount = grossAmount - aggregatorFees - platformFees; // NOUVEAU
+
+    const realOwner = `${intent.buyerSub}::${intent.buyerOwner}`;
+
+    const balanceScan = await ddb.send(new ScanCommand({
+      TableName: balanceTable,
+      FilterExpression: '#owner = :owner',
+      ExpressionAttributeNames: { '#owner': 'owner' },
+      ExpressionAttributeValues: { ':owner': realOwner },
+    }));
+    const balance = balanceScan.Items?.[0];
+
+    if (balance) {
+      await ddb.send(new UpdateCommand({
+        TableName: balanceTable,
+        Key: { id: balance.id },
+        UpdateExpression: 'SET amount = :newAmount',
+        ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + netAmount }, // NOUVEAU : netAmount, pas grossAmount
+      }));
+    } else {
+      await ddb.send(new PutCommand({
+        TableName: balanceTable,
+        Item: { id: randomUUID(), owner: realOwner, amount: netAmount, currency: 'XAF', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), __typename: 'Balance' },
+      }));
+    }
+
+    await ddb.send(new PutCommand({
+      TableName: transactionTable,
+      Item: {
+        id: randomUUID(),
+        owner: realOwner,
+        balanceId: balance?.id ?? '',
+        amount: netAmount, // NOUVEAU : net
+        grossAmount, // NOUVEAU
+        aggregatorFees, // NOUVEAU
+        platformFees, // NOUVEAU
+        type: 'CREDIT',
+        currency: 'XAF',
+        reason: 'Recharge Mobile Money (My-CoolPay)',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        __typename: 'Transaction',
+      },
+    }));
+
+    // NOUVEAU : crédite le solde S.Kalify de sa commission
+    const platformBalanceTable = requireEnv('PLATFORM_BALANCE_TABLE_NAME');
+    const platformTransactionTable = requireEnv('PLATFORM_TRANSACTION_TABLE_NAME');
+
+    const platformScan = await ddb.send(new ScanCommand({ TableName: platformBalanceTable }));
+    const platformBalance = platformScan.Items?.[0];
+
+    if (platformBalance) {
+      await ddb.send(new UpdateCommand({
+        TableName: platformBalanceTable,
+        Key: { id: platformBalance.id },
+        UpdateExpression: 'SET amount = :newAmount',
+        ExpressionAttributeValues: { ':newAmount': (platformBalance.amount ?? 0) + platformFees },
+      }));
+    } else {
+      await ddb.send(new PutCommand({
+        TableName: platformBalanceTable,
+        Item: { id: randomUUID(), amount: platformFees, currency: 'XAF', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), __typename: 'PlatformBalance' },
+      }));
+    }
+
+    await ddb.send(new PutCommand({
+      TableName: platformTransactionTable,
+      Item: {
+        id: randomUUID(),
+        amount: platformFees,
+        type: 'CREDIT',
+        source: 'DEPOSIT_FEE',
+        reason: `Commission dépôt — ${intent.buyerOwner}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        __typename: 'PlatformTransaction',
+      },
+    }));
+  }
+
+
 
 
   return { statusCode: 200, body: 'OK' };

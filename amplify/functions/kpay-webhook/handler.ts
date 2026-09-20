@@ -67,12 +67,12 @@ export const handler = async (event: any) => {
           TableName: balanceTable,
           Key: { id: balance.id },
           UpdateExpression: 'SET amount = :newAmount',
-          ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + intent.amount },
+          ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + netAmount },
         }));
       } else {
         await ddb.send(new PutCommand({
           TableName: balanceTable,
-          Item: { id: randomUUID(), owner: realOwner, amount: intent.amount, currency: 'XAF', __typename: 'Balance' },
+          Item: { id: randomUUID(), owner: realOwner, amount: netAmount, currency: 'XAF', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), __typename: 'Balance' }, // NOUVEAU : createdAt/updatedAt ajoutés aussi, absents ici
         }));
       }
 
@@ -86,7 +86,6 @@ export const handler = async (event: any) => {
           grossAmount, // NOUVEAU
           aggregatorFees, // NOUVEAU
           platformFees, // NOUVEAU
-          amount: intent.amount,
           type: 'CREDIT',
           currency: 'XAF',
           reason: 'Recharge Mobile Money (K-PAY)',

@@ -163,14 +163,41 @@ const schema = a.schema({
         .model({
           id: a.id(),
           balanceId: a.string().required(),
+      amount: a.float().required(),
           type: a.enum(['CREDIT', 'DEBIT']),
           amount: a.float().required(),
           currency: a.string().default('XAF'),
           reason: a.string(),
+          grossAmount: a.float(), // NOUVEAU : montant affiché "à première vue"
+          aggregatorFees: a.float(), // NOUVEAU : part My-CoolPay/K-PAY
+          platformFees: a.float(), // NOUVEAU : part S.Kalify
           createdAt: a.datetime(),
         })
         .authorization((allow) => [
           allow.owner(),
+        ]),
+
+    PlatformBalance: a // NOUVEAU : solde S.Kalify, un seul enregistrement en base
+        .model({
+          id: a.id(),
+          amount: a.float().required(),
+          currency: a.string(),
+        })
+        .authorization((allow) => [
+          allow.authenticated().to(['read']), // ⚠️ voir remarque plus bas
+        ]),
+
+    PlatformTransaction: a // NOUVEAU : historique des mouvements du solde S.Kalify
+        .model({
+          id: a.id(),
+          amount: a.float().required(),
+          type: a.enum(['CREDIT', 'DEBIT']),
+          source: a.string(), // "DEPOSIT_FEE" | "WITHDRAWAL_FEE" | "SALE_COMMISSION" | "ADMIN_WITHDRAWAL"
+          reason: a.string(),
+          relatedOrderId: a.string(),
+        })
+        .authorization((allow) => [
+          allow.authenticated().to(['read']),
         ]),
 
     KpayPaymentResult: a.customType({

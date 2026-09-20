@@ -289,6 +289,8 @@ const schema = a.schema({
           phoneNumber: a.string().required(),
           status: a.enum(['PENDING', 'SUCCESS', 'FAILED', 'CANCELED']),
           failureReason: a.string(),
+          debitedAmount: a.float(),
+          platformFees: a.float(),
         })
         .authorization((allow) => [
           allow.ownerDefinedIn('buyerOwner'),

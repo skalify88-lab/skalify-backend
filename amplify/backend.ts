@@ -13,6 +13,8 @@ import { checkCoolPayPayoutStatus } from './functions/check-coolpay-payout-statu
 import { adminBlockUser } from './functions/admin-block-user/resource';
 import { adminSetMaintenanceMode } from './functions/admin-set-maintenance-mode/resource';
 import { adminGetCoolPayBalance } from './functions/admin-get-coolpay-balance/resource';
+import { adminSearchUsers } from './functions/admin-search-users/resource';
+
 
 
 const backend = defineBackend({
@@ -28,6 +30,7 @@ const backend = defineBackend({
   adminBlockUser,
   adminSetMaintenanceMode,
   adminGetCoolPayBalance,
+  adminSearchUsers,
 });
 
 // Accès public en lecture pour les images d'articles
@@ -124,6 +127,14 @@ adminGetCoolPayBalanceLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientI
 const adminGetCoolPayBalanceUrl = adminGetCoolPayBalanceLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
 
 
+const adminSearchUsersLambda = backend.adminSearchUsers.resources.lambda as lambda.Function;
+userProfileTable.grantReadData(adminSearchUsersLambda); // NOUVEAU : lecture seule suffit
+adminSearchUsersLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
+adminSearchUsersLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
+adminSearchUsersLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+const adminSearchUsersUrl = adminSearchUsersLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+
+
 
 backend.addOutput({
   custom: {
@@ -132,6 +143,7 @@ backend.addOutput({
     adminBlockUserUrl: adminBlockUserUrl.url,
     adminSetMaintenanceModeUrl: adminSetMaintenanceModeUrl.url,
     adminGetCoolPayBalanceUrl: adminGetCoolPayBalanceUrl.url,
+    adminSearchUsersUrl: adminSearchUsersUrl.url,
   },
 });
 

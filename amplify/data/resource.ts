@@ -163,7 +163,6 @@ const schema = a.schema({
         .model({
           id: a.id(),
           balanceId: a.string().required(),
-      amount: a.float().required(),
           type: a.enum(['CREDIT', 'DEBIT']),
           amount: a.float().required(),
           currency: a.string().default('XAF'),

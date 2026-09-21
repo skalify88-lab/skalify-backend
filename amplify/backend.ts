@@ -144,17 +144,6 @@ const adminSearchUsersUrl = adminSearchUsersLambda.addFunctionUrl({ authType: Fu
 
 
 
-const adminWithdrawLambda = backend.adminWithdrawPlatformBalance.resources.lambda as lambda.Function;
-userProfileTable.grantReadData(adminWithdrawLambda);
-platformBalanceTable.grantReadWriteData(adminWithdrawLambda);
-platformTransactionTable.grantReadWriteData(adminWithdrawLambda);
-adminWithdrawLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
-adminWithdrawLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalanceTable.tableName);
-adminWithdrawLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
-adminWithdrawLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
-adminWithdrawLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
-const adminWithdrawUrl = adminWithdrawLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
-
 
 
 const platformBalanceTable = backend.data.resources.tables['PlatformBalance'];
@@ -170,6 +159,18 @@ platformBalanceTable.grantReadWriteData(coolPayWebhookLambda);
 platformTransactionTable.grantReadWriteData(coolPayWebhookLambda);
 coolPayWebhookLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalanceTable.tableName);
 coolPayWebhookLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
+
+
+const adminWithdrawLambda = backend.adminWithdrawPlatformBalance.resources.lambda as lambda.Function;
+userProfileTable.grantReadData(adminWithdrawLambda);
+platformBalanceTable.grantReadWriteData(adminWithdrawLambda);
+platformTransactionTable.grantReadWriteData(adminWithdrawLambda);
+adminWithdrawLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
+adminWithdrawLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalanceTable.tableName);
+adminWithdrawLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
+adminWithdrawLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
+adminWithdrawLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+const adminWithdrawUrl = adminWithdrawLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
 
 
 // Finalisation de la commande

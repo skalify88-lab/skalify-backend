@@ -13,8 +13,11 @@ function requireEnv(name: string): string {
   return value;
 }
 
+
 export const handler = async (event: any) => {
-  const sourceIp = event.requestContext?.http?.sourceIp; // NOUVEAU
+  console.log('RAW EVENT REÇU:', JSON.stringify(event));
+
+  const sourceIp = event.requestContext?.http?.sourceIp;
   if (sourceIp !== MYCOOLPAY_IP) {
     console.error('IP source inattendue :', sourceIp);
     return { statusCode: 403, body: 'KO' };
@@ -34,12 +37,9 @@ export const handler = async (event: any) => {
     signature,
   } = payload;
 
-  const privateKey = requireEnv('MYCOOLPAY_PRIVATE_KEY'); // NOUVEAU : à ajouter à l'environnement de la fonction
-
-  const expectedSignature = createHash('md5') // NOUVEAU : MD5, pas HMAC-SHA256 comme K-PAY
-    .update(
-      `${transaction_ref}${transaction_type}${transaction_amount}${transaction_currency}${transaction_operator}${privateKey}`
-    )
+  const privateKey = requireEnv('MYCOOLPAY_PRIVATE_KEY');
+  const expectedSignature = createHash('md5')
+    .update(`${transaction_ref}${transaction_type}${transaction_amount}${transaction_currency}${transaction_operator}${privateKey}`)
     .digest('hex');
 
   if (signature !== expectedSignature) {
@@ -47,28 +47,10 @@ export const handler = async (event: any) => {
     return { statusCode: 403, body: 'KO' };
   }
 
-  // À partir d'ici, la requête est authentique — traitement normal
-  const paymentIntentTable = requireEnv('COOLPAY_INTENT_TABLE_NAME');
   const balanceTable = requireEnv('BALANCE_TABLE_NAME');
   const transactionTable = requireEnv('TRANSACTION_TABLE_NAME');
 
-  const scanResult = await ddb.send(new ScanCommand({
-    TableName: paymentIntentTable,
-    FilterExpression: 'appTransactionRef = :ref',
-    ExpressionAttributeValues: { ':ref': app_transaction_ref },
-  }));
-  const intent = scanResult.Items?.[0];
-  if (!intent) return { statusCode: 200, body: 'OK' };
-
-  await ddb.send(new UpdateCommand({
-    TableName: paymentIntentTable,
-    Key: { id: intent.id },
-    UpdateExpression: 'SET #status = :status, transactionRef = :ref',
-    ExpressionAttributeNames: { '#status': 'status' },
-    ExpressionAttributeValues: { ':status': transaction_status, ':ref': transaction_ref },
-  }));
-
-
+  // NOUVEAU : branche sur le type AVANT toute recherche — chaque type interroge sa propre table
   if (transaction_type === 'PAYOUT') {
     const payoutIntentTable = requireEnv('COOLPAY_PAYOUT_INTENT_TABLE_NAME');
 
@@ -79,110 +61,126 @@ export const handler = async (event: any) => {
     }));
     const payoutIntent = payoutScan.Items?.[0];
 
-    if (payoutIntent) {
-      if (payoutIntent.status === transaction_status) { // NOUVEAU : même statut déjà enregistré, on ignore
-          return { statusCode: 200, body: 'OK (déjà traité)' };
-      }
+    if (!payoutIntent) return { statusCode: 200, body: 'OK (intent retrait introuvable)' }; // NOUVEAU
 
-      await ddb.send(new UpdateCommand({
-        TableName: payoutIntentTable,
-        Key: { id: payoutIntent.id },
-        UpdateExpression: 'SET #status = :status, transactionRef = :ref',
-        ExpressionAttributeNames: { '#status': 'status' },
-        ExpressionAttributeValues: { ':status': transaction_status, ':ref': transaction_ref },
+    if (payoutIntent.status === transaction_status) {
+      return { statusCode: 200, body: 'OK (déjà traité)' };
+    }
+
+    await ddb.send(new UpdateCommand({
+      TableName: payoutIntentTable,
+      Key: { id: payoutIntent.id },
+      UpdateExpression: 'SET #status = :status, transactionRef = :ref',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: { ':status': transaction_status, ':ref': transaction_ref },
+    }));
+
+    const realOwner = `${payoutIntent.buyerSub}::${payoutIntent.buyerOwner}`;
+
+    if (transaction_status === 'FAILED' || transaction_status === 'CANCELED') {
+      const balanceScan = await ddb.send(new ScanCommand({
+        TableName: balanceTable,
+        FilterExpression: '#owner = :owner',
+        ExpressionAttributeNames: { '#owner': 'owner' },
+        ExpressionAttributeValues: { ':owner': realOwner },
       }));
+      const balance = balanceScan.Items?.[0];
 
-      const realOwner = `${payoutIntent.buyerSub}::${payoutIntent.buyerOwner}`;
-
-      if (transaction_status === 'FAILED' || transaction_status === 'CANCELED') {
-        // NOUVEAU : le retrait a échoué — on rembourse EXACTEMENT ce qui avait été débité au départ (voir point 2 côté client)
-        const balanceScan = await ddb.send(new ScanCommand({
+      if (balance) {
+        await ddb.send(new UpdateCommand({
           TableName: balanceTable,
-          FilterExpression: '#owner = :owner',
-          ExpressionAttributeNames: { '#owner': 'owner' },
-          ExpressionAttributeValues: { ':owner': realOwner },
+          Key: { id: balance.id },
+          UpdateExpression: 'SET amount = :newAmount',
+          ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + payoutIntent.debitedAmount },
         }));
-        const balance = balanceScan.Items?.[0];
-
-        if (balance) {
-          await ddb.send(new UpdateCommand({
-            TableName: balanceTable,
-            Key: { id: balance.id },
-            UpdateExpression: 'SET amount = :newAmount',
-            ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + payoutIntent.debitedAmount }, // NOUVEAU : debitedAmount, pas payoutIntent.amount
-          }));
-
-          await ddb.send(new PutCommand({
-            TableName: transactionTable,
-            Item: {
-              id: randomUUID(),
-              owner: realOwner,
-              balanceId: balance.id,
-              amount: payoutIntent.debitedAmount,
-              grossAmount: payoutIntent.amount,
-              aggregatorFees: 0,
-              platformFees: 0,
-              type: 'CREDIT',
-              currency: 'XAF',
-              reason: 'Remboursement retrait échoué (My-CoolPay)',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              __typename: 'Transaction',
-            },
-          }));
-        }
-      } else if (transaction_status === 'SUCCESS') {
-        // NOUVEAU : succès confirmé — crédite la commission S.Kalify (déjà débitée côté client, cf. point 2)
-        const platformBalanceTable = requireEnv('PLATFORM_BALANCE_TABLE_NAME');
-        const platformTransactionTable = requireEnv('PLATFORM_TRANSACTION_TABLE_NAME');
-
-        const platformScan = await ddb.send(new ScanCommand({ TableName: platformBalanceTable }));
-        const platformBalance = platformScan.Items?.[0];
-        const platformFees = payoutIntent.platformFees ?? 0;
-
-        if (platformBalance) {
-          await ddb.send(new UpdateCommand({
-            TableName: platformBalanceTable,
-            Key: { id: platformBalance.id },
-            UpdateExpression: 'SET amount = :newAmount',
-            ExpressionAttributeValues: { ':newAmount': (platformBalance.amount ?? 0) + platformFees },
-          }));
-        } else {
-          await ddb.send(new PutCommand({
-            TableName: platformBalanceTable,
-            Item: { id: randomUUID(), amount: platformFees, currency: 'XAF', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), __typename: 'PlatformBalance' },
-          }));
-        }
 
         await ddb.send(new PutCommand({
-          TableName: platformTransactionTable,
+          TableName: transactionTable,
           Item: {
             id: randomUUID(),
-            amount: platformFees,
+            owner: realOwner,
+            balanceId: balance.id,
+            amount: payoutIntent.debitedAmount,
+            grossAmount: payoutIntent.amount,
+            aggregatorFees: 0,
+            platformFees: 0,
             type: 'CREDIT',
-            source: 'WITHDRAWAL_FEE',
-            reason: `Commission retrait — ${payoutIntent.buyerOwner}`,
+            currency: 'XAF',
+            reason: 'Remboursement retrait échoué (My-CoolPay)',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            __typename: 'PlatformTransaction',
+            __typename: 'Transaction',
           },
         }));
       }
+    } else if (transaction_status === 'SUCCESS') {
+      const platformBalanceTable = requireEnv('PLATFORM_BALANCE_TABLE_NAME');
+      const platformTransactionTable = requireEnv('PLATFORM_TRANSACTION_TABLE_NAME');
+
+      const platformScan = await ddb.send(new ScanCommand({ TableName: platformBalanceTable }));
+      const platformBalance = platformScan.Items?.[0];
+      const platformFees = payoutIntent.platformFees ?? 0;
+
+      if (platformBalance) {
+        await ddb.send(new UpdateCommand({
+          TableName: platformBalanceTable,
+          Key: { id: platformBalance.id },
+          UpdateExpression: 'SET amount = :newAmount',
+          ExpressionAttributeValues: { ':newAmount': (platformBalance.amount ?? 0) + platformFees },
+        }));
+      } else {
+        await ddb.send(new PutCommand({
+          TableName: platformBalanceTable,
+          Item: { id: randomUUID(), amount: platformFees, currency: 'XAF', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), __typename: 'PlatformBalance' },
+        }));
+      }
+
+      await ddb.send(new PutCommand({
+        TableName: platformTransactionTable,
+        Item: {
+          id: randomUUID(),
+          amount: platformFees,
+          type: 'CREDIT',
+          source: 'WITHDRAWAL_FEE',
+          reason: `Commission retrait — ${payoutIntent.buyerOwner}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          __typename: 'PlatformTransaction',
+        },
+      }));
     }
 
     return { statusCode: 200, body: 'OK' };
   }
 
-
+  // NOUVEAU : le PAYIN garde sa propre recherche, dans sa propre table, séparément
   if (transaction_type === 'PAYIN' && transaction_status === 'SUCCESS') {
-    if (intent.status === 'SUCCESS') { // NOUVEAU : déjà traité, on ignore ce doublon
-        return { statusCode: 200, body: 'OK (déjà traité)' };
+    const paymentIntentTable = requireEnv('COOLPAY_INTENT_TABLE_NAME');
+
+    const scanResult = await ddb.send(new ScanCommand({
+      TableName: paymentIntentTable,
+      FilterExpression: 'appTransactionRef = :ref',
+      ExpressionAttributeValues: { ':ref': app_transaction_ref },
+    }));
+    const intent = scanResult.Items?.[0];
+    if (!intent) return { statusCode: 200, body: 'OK (intent dépôt introuvable)' };
+
+    if (intent.status === 'SUCCESS') {
+      return { statusCode: 200, body: 'OK (déjà traité)' };
     }
 
+    await ddb.send(new UpdateCommand({
+      TableName: paymentIntentTable,
+      Key: { id: intent.id },
+      UpdateExpression: 'SET #status = :status, transactionRef = :ref',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: { ':status': transaction_status, ':ref': transaction_ref },
+    }));
+
     const grossAmount = transaction_amount;
-    const aggregatorFees = transaction_fees ?? 0; // NOUVEAU
-    const platformFees = Math.round(grossAmount * 0.01); // NOUVEAU : 1% fixe
-    const netAmount = grossAmount - aggregatorFees - platformFees; // NOUVEAU
+    const aggregatorFees = transaction_fees ?? 0;
+    const platformFees = Math.round(grossAmount * 0.01);
+    const netAmount = grossAmount - aggregatorFees - platformFees;
 
     const realOwner = `${intent.buyerSub}::${intent.buyerOwner}`;
 
@@ -199,7 +197,7 @@ export const handler = async (event: any) => {
         TableName: balanceTable,
         Key: { id: balance.id },
         UpdateExpression: 'SET amount = :newAmount',
-        ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + netAmount }, // NOUVEAU : netAmount, pas grossAmount
+        ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + netAmount },
       }));
     } else {
       await ddb.send(new PutCommand({
@@ -214,10 +212,10 @@ export const handler = async (event: any) => {
         id: randomUUID(),
         owner: realOwner,
         balanceId: balance?.id ?? '',
-        amount: netAmount, // NOUVEAU : net
-        grossAmount, // NOUVEAU
-        aggregatorFees, // NOUVEAU
-        platformFees, // NOUVEAU
+        amount: netAmount,
+        grossAmount,
+        aggregatorFees,
+        platformFees,
         type: 'CREDIT',
         currency: 'XAF',
         reason: 'Recharge Mobile Money (My-CoolPay)',
@@ -227,7 +225,6 @@ export const handler = async (event: any) => {
       },
     }));
 
-    // NOUVEAU : crédite le solde S.Kalify de sa commission
     const platformBalanceTable = requireEnv('PLATFORM_BALANCE_TABLE_NAME');
     const platformTransactionTable = requireEnv('PLATFORM_TRANSACTION_TABLE_NAME');
 
@@ -263,8 +260,9 @@ export const handler = async (event: any) => {
     }));
   }
 
-
-
-
   return { statusCode: 200, body: 'OK' };
 };
+
+
+
+

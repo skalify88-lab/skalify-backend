@@ -192,7 +192,10 @@ export const handler = async (event: any) => {
     }));
     const balance = balanceScan.Items?.[0];
 
+    let balanceId: string;
+
     if (balance) {
+      balanceId = balance.id;
       await ddb.send(new UpdateCommand({
         TableName: balanceTable,
         Key: { id: balance.id },
@@ -200,9 +203,10 @@ export const handler = async (event: any) => {
         ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + netAmount },
       }));
     } else {
+      balanceId = randomUUID();
       await ddb.send(new PutCommand({
         TableName: balanceTable,
-        Item: { id: randomUUID(), owner: realOwner, amount: netAmount, currency: 'XAF', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), __typename: 'Balance' },
+        Item: { id: balanceId, owner: realOwner, amount: netAmount, currency: 'XAF', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), __typename: 'Balance' }, // NOUVEAU : id: balanceId, plus randomUUID() une seconde fois
       }));
     }
 
@@ -211,7 +215,7 @@ export const handler = async (event: any) => {
       Item: {
         id: randomUUID(),
         owner: realOwner,
-        balanceId: balance?.id ?? '',
+        balanceId,
         amount: netAmount,
         grossAmount,
         aggregatorFees,

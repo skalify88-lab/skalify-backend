@@ -124,7 +124,7 @@ export const handler = async (event: any) => {
     const payoutIntent = payoutScan.Items?.[0];
 
     if (payoutIntent) {
-      await ddb.send(new UpdateCommand({ // NOUVEAU : met à jour le statut dans TOUS les cas, pas seulement l'échec
+      await ddb.send(new UpdateCommand({
         TableName: payoutIntentTable,
         Key: { id: payoutIntent.id },
         UpdateExpression: 'SET #status = :status, transactionRef = :ref',
@@ -132,9 +132,10 @@ export const handler = async (event: any) => {
         ExpressionAttributeValues: { ':status': transaction_status, ':ref': transaction_ref },
       }));
 
-      if (transaction_status === 'FAILED' || transaction_status === 'CANCELED') {
-        const realOwner = `${payoutIntent.buyerSub}::${payoutIntent.buyerOwner}`;
+      const realOwner = `${payoutIntent.buyerSub}::${payoutIntent.buyerOwner}`;
 
+      if (transaction_status === 'FAILED' || transaction_status === 'CANCELED') {
+        // NOUVEAU : le retrait a échoué — on rembourse EXACTEMENT ce qui avait été débité au départ (voir point 2 côté client)
         const balanceScan = await ddb.send(new ScanCommand({
           TableName: balanceTable,
           FilterExpression: '#owner = :owner',
@@ -148,7 +149,7 @@ export const handler = async (event: any) => {
             TableName: balanceTable,
             Key: { id: balance.id },
             UpdateExpression: 'SET amount = :newAmount',
-            ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + payoutIntent.amount },
+            ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + payoutIntent.debitedAmount }, // NOUVEAU : debitedAmount, pas payoutIntent.amount
           }));
 
           await ddb.send(new PutCommand({
@@ -157,7 +158,10 @@ export const handler = async (event: any) => {
               id: randomUUID(),
               owner: realOwner,
               balanceId: balance.id,
-              amount: payoutIntent.amount,
+              amount: payoutIntent.debitedAmount,
+              grossAmount: payoutIntent.amount,
+              aggregatorFees: 0,
+              platformFees: 0,
               type: 'CREDIT',
               currency: 'XAF',
               reason: 'Remboursement retrait échoué (My-CoolPay)',
@@ -167,9 +171,43 @@ export const handler = async (event: any) => {
             },
           }));
         }
+      } else if (transaction_status === 'SUCCESS') {
+        // NOUVEAU : succès confirmé — crédite la commission S.Kalify (déjà débitée côté client, cf. point 2)
+        const platformBalanceTable = requireEnv('PLATFORM_BALANCE_TABLE_NAME');
+        const platformTransactionTable = requireEnv('PLATFORM_TRANSACTION_TABLE_NAME');
+
+        const platformScan = await ddb.send(new ScanCommand({ TableName: platformBalanceTable }));
+        const platformBalance = platformScan.Items?.[0];
+        const platformFees = payoutIntent.platformFees ?? 0;
+
+        if (platformBalance) {
+          await ddb.send(new UpdateCommand({
+            TableName: platformBalanceTable,
+            Key: { id: platformBalance.id },
+            UpdateExpression: 'SET amount = :newAmount',
+            ExpressionAttributeValues: { ':newAmount': (platformBalance.amount ?? 0) + platformFees },
+          }));
+        } else {
+          await ddb.send(new PutCommand({
+            TableName: platformBalanceTable,
+            Item: { id: randomUUID(), amount: platformFees, currency: 'XAF', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), __typename: 'PlatformBalance' },
+          }));
+        }
+
+        await ddb.send(new PutCommand({
+          TableName: platformTransactionTable,
+          Item: {
+            id: randomUUID(),
+            amount: platformFees,
+            type: 'CREDIT',
+            source: 'WITHDRAWAL_FEE',
+            reason: `Commission retrait — ${payoutIntent.buyerOwner}`,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            __typename: 'PlatformTransaction',
+          },
+        }));
       }
-      // NOUVEAU : cas SUCCESS — rien de plus à faire ici, le statut est déjà mis à jour ci-dessus,
-      // c'est justement ce que le client va lire en interrogeant sa propre base
     }
 
     return { statusCode: 200, body: 'OK' };

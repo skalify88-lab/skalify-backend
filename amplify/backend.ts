@@ -14,6 +14,8 @@ import { adminBlockUser } from './functions/admin-block-user/resource';
 import { adminSetMaintenanceMode } from './functions/admin-set-maintenance-mode/resource';
 import { adminGetCoolPayBalance } from './functions/admin-get-coolpay-balance/resource';
 import { adminSearchUsers } from './functions/admin-search-users/resource';
+import { finalizeOrder } from './functions/finalize-order/resource';
+
 
 
 
@@ -31,7 +33,11 @@ const backend = defineBackend({
   adminSetMaintenanceMode,
   adminGetCoolPayBalance,
   adminSearchUsers,
+  finalizeOrder,
 });
+
+
+
 
 // Accès public en lecture pour les images d'articles
 const bucket = backend.storage.resources.bucket;
@@ -150,6 +156,29 @@ coolPayWebhookLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalan
 coolPayWebhookLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
 
 
+// Finalisation de la commande
+
+const orderTable = backend.data.resources.tables['Order'];
+const finalizeOrderLambda = backend.finalizeOrder.resources.lambda as lambda.Function;
+
+orderTable.grantReadWriteData(finalizeOrderLambda);
+balanceTable.grantReadWriteData(finalizeOrderLambda);
+transactionTable.grantReadWriteData(finalizeOrderLambda);
+platformBalanceTable.grantReadWriteData(finalizeOrderLambda);
+platformTransactionTable.grantReadWriteData(finalizeOrderLambda);
+userProfileTable.grantReadData(finalizeOrderLambda);
+
+finalizeOrderLambda.addEnvironment('ORDER_TABLE_NAME', orderTable.tableName);
+finalizeOrderLambda.addEnvironment('BALANCE_TABLE_NAME', balanceTable.tableName);
+finalizeOrderLambda.addEnvironment('TRANSACTION_TABLE_NAME', transactionTable.tableName);
+finalizeOrderLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalanceTable.tableName);
+finalizeOrderLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
+finalizeOrderLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
+finalizeOrderLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
+finalizeOrderLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+
+const finalizeOrderUrl = finalizeOrderLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+
 
 
 
@@ -162,6 +191,7 @@ backend.addOutput({
     adminSetMaintenanceModeUrl: adminSetMaintenanceModeUrl.url,
     adminGetCoolPayBalanceUrl: adminGetCoolPayBalanceUrl.url,
     adminSearchUsersUrl: adminSearchUsersUrl.url,
+    finalizeOrderUrl: finalizeOrderUrl.url,
   },
 });
 

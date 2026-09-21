@@ -47,6 +47,10 @@ export const handler = async (event: any) => {
   }));
 
   if (status === 'COMPLETED') {
+      if (intent.status === 'COMPLETED') { // NOUVEAU
+          return { statusCode: 200, body: 'OK (déjà traité)' };
+      }
+
       const grossAmount = intent.amount;
       const aggregatorFees = 0; // ⚠️ à confirmer avec K-PAY — pas de champ de frais connu dans leur callback actuel
       const platformFees = Math.round(grossAmount * 0.01);

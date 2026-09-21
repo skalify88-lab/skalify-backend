@@ -68,50 +68,6 @@ export const handler = async (event: any) => {
     ExpressionAttributeValues: { ':status': transaction_status, ':ref': transaction_ref },
   }));
 
-  if (transaction_status === 'SUCCESS') {
-
-      const realOwner = `${intent.buyerSub}::${intent.buyerOwner}`;
-
-      const balanceScan = await ddb.send(new ScanCommand({
-        TableName: balanceTable, // NOUVEAU : balanceTable, pas paymentIntentTable
-        FilterExpression: '#owner = :owner',
-        ExpressionAttributeNames: { '#owner': 'owner' },
-        ExpressionAttributeValues: { ':owner': realOwner },
-      }));
-      const balance = balanceScan.Items?.[0];
-
-      if (balance) {
-        await ddb.send(new UpdateCommand({
-          TableName: balanceTable,
-          Key: { id: balance.id },
-          UpdateExpression: 'SET amount = :newAmount',
-          ExpressionAttributeValues: { ':newAmount': (balance.amount ?? 0) + transaction_amount },
-        }));
-      } else {
-        await ddb.send(new PutCommand({
-          TableName: balanceTable,
-          Item: { id: randomUUID(), owner: realOwner, amount: transaction_amount, currency: 'XAF', __typename: 'Balance' },
-        }));
-      }
-
-      await ddb.send(new PutCommand({
-        TableName: transactionTable,
-        Item: {
-          id: randomUUID(),
-          owner: realOwner, // NOUVEAU : realOwner, pas intent.buyerOwner
-          balanceId: balance?.id ?? '',
-          amount: transaction_amount,
-          type: 'CREDIT',
-          currency: 'XAF',
-          reason: 'Recharge Mobile Money (My-CoolPay)',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          __typename: 'Transaction',
-        },
-      }));
-  }
-
-
 
   if (transaction_type === 'PAYOUT') {
     const payoutIntentTable = requireEnv('COOLPAY_PAYOUT_INTENT_TABLE_NAME');
@@ -124,6 +80,10 @@ export const handler = async (event: any) => {
     const payoutIntent = payoutScan.Items?.[0];
 
     if (payoutIntent) {
+      if (payoutIntent.status === transaction_status) { // NOUVEAU : même statut déjà enregistré, on ignore
+          return { statusCode: 200, body: 'OK (déjà traité)' };
+      }
+
       await ddb.send(new UpdateCommand({
         TableName: payoutIntentTable,
         Key: { id: payoutIntent.id },
@@ -214,8 +174,11 @@ export const handler = async (event: any) => {
   }
 
 
-
   if (transaction_type === 'PAYIN' && transaction_status === 'SUCCESS') {
+    if (intent.status === 'SUCCESS') { // NOUVEAU : déjà traité, on ignore ce doublon
+        return { statusCode: 200, body: 'OK (déjà traité)' };
+    }
+
     const grossAmount = transaction_amount;
     const aggregatorFees = transaction_fees ?? 0; // NOUVEAU
     const platformFees = Math.round(grossAmount * 0.01); // NOUVEAU : 1% fixe

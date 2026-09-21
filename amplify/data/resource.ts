@@ -291,6 +291,7 @@ const schema = a.schema({
           failureReason: a.string(),
           debitedAmount: a.float(),
           platformFees: a.float(),
+          aggregatorFees: a.float(),
         })
         .authorization((allow) => [
           allow.ownerDefinedIn('buyerOwner'),

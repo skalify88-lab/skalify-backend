@@ -15,6 +15,7 @@ import { adminSetMaintenanceMode } from './functions/admin-set-maintenance-mode/
 import { adminGetCoolPayBalance } from './functions/admin-get-coolpay-balance/resource';
 import { adminSearchUsers } from './functions/admin-search-users/resource';
 import { finalizeOrder } from './functions/finalize-order/resource';
+import { adminWithdrawPlatformBalance } from './functions/admin-withdraw-platform-balance/resource';
 
 
 
@@ -34,6 +35,7 @@ const backend = defineBackend({
   adminGetCoolPayBalance,
   adminSearchUsers,
   finalizeOrder,
+  adminWithdrawPlatformBalance,
 });
 
 
@@ -141,6 +143,20 @@ adminSearchUsersLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
 const adminSearchUsersUrl = adminSearchUsersLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
 
 
+
+const adminWithdrawLambda = backend.adminWithdrawPlatformBalance.resources.lambda as lambda.Function;
+userProfileTable.grantReadData(adminWithdrawLambda);
+platformBalanceTable.grantReadWriteData(adminWithdrawLambda);
+platformTransactionTable.grantReadWriteData(adminWithdrawLambda);
+adminWithdrawLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
+adminWithdrawLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalanceTable.tableName);
+adminWithdrawLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
+adminWithdrawLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
+adminWithdrawLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+const adminWithdrawUrl = adminWithdrawLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+
+
+
 const platformBalanceTable = backend.data.resources.tables['PlatformBalance'];
 const platformTransactionTable = backend.data.resources.tables['PlatformTransaction'];
 
@@ -192,6 +208,7 @@ backend.addOutput({
     adminGetCoolPayBalanceUrl: adminGetCoolPayBalanceUrl.url,
     adminSearchUsersUrl: adminSearchUsersUrl.url,
     finalizeOrderUrl: finalizeOrderUrl.url,
+    adminWithdrawPlatformBalanceUrl: adminWithdrawUrl.url,
   },
 });
 

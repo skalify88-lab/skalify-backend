@@ -41,14 +41,6 @@ const backend = defineBackend({
 });
 
 
-// Update UserProfile
-const updateProfileLambda = backend.updateProfile.resources.lambda as lambda.Function;
-userProfileTable.grantReadWriteData(updateProfileLambda);
-updateProfileLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
-updateProfileLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
-updateProfileLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
-const updateProfileUrl = updateProfileLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
-
 
 // Accès public en lecture pour les images d'articles
 const bucket = backend.storage.resources.bucket;
@@ -120,6 +112,18 @@ const userProfileTable = backend.data.resources.tables['UserProfile'];
 const appConfigTable = backend.data.resources.tables['AppConfig'];
 const userPoolId = backend.auth.resources.userPool.userPoolId;
 const userPoolClientId = backend.auth.resources.userPoolClient.userPoolClientId;
+
+
+
+// Update UserProfile
+const updateProfileLambda = backend.updateProfile.resources.lambda as lambda.Function;
+userProfileTable.grantReadWriteData(updateProfileLambda);
+updateProfileLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
+updateProfileLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
+updateProfileLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+const updateProfileUrl = updateProfileLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+
+
 
 const adminBlockUserLambda = backend.adminBlockUser.resources.lambda as lambda.Function;
 userProfileTable.grantReadWriteData(adminBlockUserLambda);

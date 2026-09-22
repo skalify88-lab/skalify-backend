@@ -37,6 +37,7 @@ async function verifyAdmin(authHeader: string | undefined) {
   }
 }
 
+
 export const handler = async (event: any) => {
   try {
     await verifyAdmin(event.headers?.authorization || event.headers?.Authorization);
@@ -46,14 +47,14 @@ export const handler = async (event: any) => {
     let total = 0;
     let lastEvaluatedKey: Record<string, any> | undefined = undefined;
 
-    do { // NOUVEAU : pagine, au cas où il y aurait beaucoup d'utilisateurs
-      const scan = await ddb.send(new ScanCommand({
+    do {
+      const scan: any = await ddb.send(new ScanCommand({ // NOUVEAU : any explicite
         TableName: balanceTable,
         ProjectionExpression: 'amount',
         ExclusiveStartKey: lastEvaluatedKey,
       }));
 
-      (scan.Items ?? []).forEach((item) => {
+      (scan.Items ?? []).forEach((item: any) => { // NOUVEAU : any explicite sur le paramètre
         total += item.amount ?? 0;
       });
 
@@ -65,3 +66,6 @@ export const handler = async (event: any) => {
     return { statusCode: 403, body: JSON.stringify({ success: false, message: e.message }) };
   }
 };
+
+
+

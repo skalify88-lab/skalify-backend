@@ -16,6 +16,7 @@ import { adminGetCoolPayBalance } from './functions/admin-get-coolpay-balance/re
 import { adminSearchUsers } from './functions/admin-search-users/resource';
 import { finalizeOrder } from './functions/finalize-order/resource';
 import { adminWithdrawPlatformBalance } from './functions/admin-withdraw-platform-balance/resource';
+import { updateProfile } from './functions/update-profile/resource';
 
 
 
@@ -36,13 +37,22 @@ const backend = defineBackend({
   adminSearchUsers,
   finalizeOrder,
   adminWithdrawPlatformBalance,
+  updateProfile,
 });
 
 
+// Update UserProfile
+const updateProfileLambda = backend.updateProfile.resources.lambda as lambda.Function;
+userProfileTable.grantReadWriteData(updateProfileLambda);
+updateProfileLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
+updateProfileLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
+updateProfileLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+const updateProfileUrl = updateProfileLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
 
 
 // Accès public en lecture pour les images d'articles
 const bucket = backend.storage.resources.bucket;
+
 
 // --- K-PAY ---
 const paymentIntentTable = backend.data.resources.tables['PaymentIntent'];
@@ -210,6 +220,7 @@ backend.addOutput({
     adminSearchUsersUrl: adminSearchUsersUrl.url,
     finalizeOrderUrl: finalizeOrderUrl.url,
     adminWithdrawPlatformBalanceUrl: adminWithdrawUrl.url,
+    updateProfileUrl: updateProfileUrl.url,
   },
 });
 

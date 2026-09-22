@@ -17,6 +17,7 @@ import { adminSearchUsers } from './functions/admin-search-users/resource';
 import { finalizeOrder } from './functions/finalize-order/resource';
 import { adminWithdrawPlatformBalance } from './functions/admin-withdraw-platform-balance/resource';
 import { updateProfile } from './functions/update-profile/resource';
+import { adminGetTotalUsersBalance } from './functions/admin-get-total-users-balance/resource';
 
 
 
@@ -38,6 +39,7 @@ const backend = defineBackend({
   finalizeOrder,
   adminWithdrawPlatformBalance,
   updateProfile,
+  adminGetTotalUsersBalance,
 });
 
 
@@ -157,6 +159,17 @@ adminSearchUsersLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
 const adminSearchUsersUrl = adminSearchUsersLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
 
 
+// Balance Globale
+
+const adminGetTotalUsersBalanceLambda = backend.adminGetTotalUsersBalance.resources.lambda as lambda.Function;
+userProfileTable.grantReadData(adminGetTotalUsersBalanceLambda);
+balanceTable.grantReadData(adminGetTotalUsersBalanceLambda);
+adminGetTotalUsersBalanceLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
+adminGetTotalUsersBalanceLambda.addEnvironment('BALANCE_TABLE_NAME', balanceTable.tableName);
+adminGetTotalUsersBalanceLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
+adminGetTotalUsersBalanceLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+const adminGetTotalUsersBalanceUrl = adminGetTotalUsersBalanceLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+
 
 
 
@@ -225,6 +238,7 @@ backend.addOutput({
     finalizeOrderUrl: finalizeOrderUrl.url,
     adminWithdrawPlatformBalanceUrl: adminWithdrawUrl.url,
     updateProfileUrl: updateProfileUrl.url,
+    adminGetTotalUsersBalanceUrl: adminGetTotalUsersBalanceUrl.url,
   },
 });
 

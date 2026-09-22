@@ -71,16 +71,25 @@ export const handler = async (event: any) => {
     const buyerValid = updatedOrder.buyerEnteredCode === updatedOrder.sellerCode;
     const sellerValid = updatedOrder.sellerEnteredCode === updatedOrder.buyerCode;
 
-    if (buyerValid && sellerValid && updatedOrder.status !== 'COMPLETED') {
-      await ddb.send(new UpdateCommand({
-        TableName: orderTable,
-        Key: { id: orderId },
-        UpdateExpression: 'SET #status = :completed',
-        ExpressionAttributeNames: { '#status': 'status' },
-        ExpressionAttributeValues: { ':completed': 'COMPLETED' },
-      }));
+    if (buyerValid && sellerValid) {
+      try {
+        await ddb.send(new UpdateCommand({
+          TableName: orderTable,
+          Key: { id: orderId },
+          UpdateExpression: 'SET #status = :completed',
+          ConditionExpression: '#status <> :completed',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: { ':completed': 'COMPLETED' },
+        }));
+      } catch (e: any) {
+        if (e.name === 'ConditionalCheckFailedException') {
+          return { statusCode: 200, body: JSON.stringify({ success: true, orderStatus: 'COMPLETED' }) };
+        }
+        throw e;
+      }
 
-      const grossAmount = parseFloat(updatedOrder.total);
+      // NOUVEAU : on arrive ici UNIQUEMENT si la mise à jour conditionnelle a réussi — plus de completedSuccessfully nécessaire
+      const grossAmount = parseFloat(updatedOrder.total); // NOUVEAU : sorti du if, portée correcte désormais
       const platformFees = Math.round(grossAmount * 0.06);
       const netAmount = grossAmount - platformFees;
 

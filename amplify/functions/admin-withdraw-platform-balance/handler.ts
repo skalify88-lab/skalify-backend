@@ -1,5 +1,11 @@
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { ProxyAgent } from 'undici';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, ScanCommand, UpdateCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { randomUUID } from 'crypto';
+
+const ddbClient = new DynamoDBClient({});
+const ddb = DynamoDBDocumentClient.from(ddbClient);
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -13,14 +19,64 @@ const verifier = CognitoJwtVerifier.create({
   clientId: requireEnv('COGNITO_CLIENT_ID'),
 });
 
+async function verifyAdmin(authHeader: string | undefined) { // NOUVEAU : vraie vérification admin
+  if (!authHeader) throw new Error('Non authentifié');
+  const token = authHeader.replace('Bearer ', '');
+  const payload = await verifier.verify(token);
+  const username = payload['cognito:username'] as string;
+
+  const userProfileTable = requireEnv('USER_PROFILE_TABLE_NAME');
+  const scan = await ddb.send(new ScanCommand({
+    TableName: userProfileTable,
+    FilterExpression: '#owner = :owner',
+    ExpressionAttributeNames: { '#owner': 'owner' },
+    ExpressionAttributeValues: { ':owner': `${payload.sub}::${username}` },
+  }));
+  const profile = scan.Items?.[0];
+
+  if (!profile || profile.isAdmin !== true) {
+    throw new Error('Accès refusé : droits administrateur requis');
+  }
+}
+
 export const handler = async (event: any) => {
   try {
-    const authHeader = event.headers?.authorization || event.headers?.Authorization;
-    if (!authHeader) throw new Error('Non authentifié');
-    await verifier.verify(authHeader.replace('Bearer ', '')); // NOUVEAU : vérifie juste l'identité, pas le solde ici
+    await verifyAdmin(event.headers?.authorization || event.headers?.Authorization); // NOUVEAU
 
     const body = JSON.parse(event.body);
-    const { amount, phoneNumber, appTransactionRef } = body; // NOUVEAU : appTransactionRef fourni par le client
+    const { amount, phoneNumber, appTransactionRef, aggregatorFees } = body; // NOUVEAU : aggregatorFees reçu
+
+    // NOUVEAU : débit + PlatformTransaction, ici, côté serveur, via DynamoDB direct
+    const platformBalanceTable = requireEnv('PLATFORM_BALANCE_TABLE_NAME');
+    const platformTransactionTable = requireEnv('PLATFORM_TRANSACTION_TABLE_NAME');
+
+    const platformScan = await ddb.send(new ScanCommand({ TableName: platformBalanceTable }));
+    const platformBalance = platformScan.Items?.[0];
+
+    if (!platformBalance || (platformBalance.amount ?? 0) < amount) {
+      throw new Error('Solde S.Kalify insuffisant');
+    }
+
+    await ddb.send(new UpdateCommand({
+      TableName: platformBalanceTable,
+      Key: { id: platformBalance.id },
+      UpdateExpression: 'SET amount = :newAmount',
+      ExpressionAttributeValues: { ':newAmount': (platformBalance.amount ?? 0) - amount },
+    }));
+
+    await ddb.send(new PutCommand({
+      TableName: platformTransactionTable,
+      Item: {
+        id: randomUUID(),
+        amount,
+        type: 'DEBIT',
+        source: 'ADMIN_WITHDRAWAL',
+        reason: `Retrait admin vers Mobile Money (frais agrégateur estimés : ${aggregatorFees ?? 0} FCFA)`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        __typename: 'PlatformTransaction',
+      },
+    }));
 
     const proxyAgent = new ProxyAgent(requireEnv('STATIC_IP_PROXY_URL'));
     const controller = new AbortController();
@@ -37,7 +93,7 @@ export const handler = async (event: any) => {
             'X-PRIVATE-KEY': requireEnv('MYCOOLPAY_PRIVATE_KEY'),
           },
           body: JSON.stringify({
-            transaction_amount: amount,
+            transaction_amount: amount - (aggregatorFees ?? 0), // NOUVEAU : montant réellement envoyé
             transaction_currency: 'XAF',
             transaction_reason: 'Retrait solde S.Kalify',
             transaction_operator: 'CM_OM',

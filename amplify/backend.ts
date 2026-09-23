@@ -188,15 +188,17 @@ coolPayWebhookLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalan
 coolPayWebhookLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
 
 
+
 const adminWithdrawLambda = backend.adminWithdrawPlatformBalance.resources.lambda as lambda.Function;
-userProfileTable.grantReadData(adminWithdrawLambda);
+userProfileTable.grantReadData(adminWithdrawLambda); // NOUVEAU : nécessaire pour verifyAdmin
 platformBalanceTable.grantReadWriteData(adminWithdrawLambda);
 platformTransactionTable.grantReadWriteData(adminWithdrawLambda);
-adminWithdrawLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
+adminWithdrawLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName); // NOUVEAU
 adminWithdrawLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalanceTable.tableName);
 adminWithdrawLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
 adminWithdrawLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
 adminWithdrawLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+
 const adminWithdrawUrl = adminWithdrawLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
 
 

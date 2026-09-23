@@ -292,6 +292,7 @@ const schema = a.schema({
           debitedAmount: a.float(),
           platformFees: a.float(),
           aggregatorFees: a.float(),
+          isPlatformWithdrawal: a.boolean().default(false),
         })
         .authorization((allow) => [
           allow.ownerDefinedIn('buyerOwner'),

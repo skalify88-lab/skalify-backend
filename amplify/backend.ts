@@ -123,8 +123,18 @@ userProfileTable.grantReadWriteData(updateProfileLambda);
 updateProfileLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
 updateProfileLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
 updateProfileLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
-const updateProfileUrl = updateProfileLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
-
+const updateProfileUrl = updateProfileLambda.addFunctionUrl({
+  authType: FunctionUrlAuthType.NONE,
+  cors: {
+    allowedOrigins: [
+      'https://s-kalify.com',
+      'http://localhost:5500',
+      'http://127.0.0.1:5500',
+    ],
+    allowedMethods: [lambda.HttpMethod.POST],
+    allowedHeaders: ['Authorization', 'Content-Type'],
+  },
+});
 
 
 const adminBlockUserLambda = backend.adminBlockUser.resources.lambda as lambda.Function;

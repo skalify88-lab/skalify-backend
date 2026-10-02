@@ -1,26 +1,28 @@
-import { defineBackend } from '@aws-amplify/backend';
-import { auth } from './auth/resource';
-import { data } from './data/resource';
-import { storage } from './storage/resource';
-import { aws_s3 as s3, aws_iam as iam, aws_lambda as lambda } from 'aws-cdk-lib';
-import { FunctionUrlAuthType } from 'aws-cdk-lib/aws-lambda';
-import { initKpayPayment } from './functions/init-kpay-payment/resource';
-import { kpayWebhook } from './functions/kpay-webhook/resource';
-import { initCoolPayPayment } from './functions/init-coolpay-payment/resource';
-import { coolPayWebhook } from './functions/coolpay-webhook/resource';
-import { initCoolPayPayout } from './functions/init-coolpay-payout/resource';
-import { checkCoolPayPayoutStatus } from './functions/check-coolpay-payout-status/resource';
-import { adminBlockUser } from './functions/admin-block-user/resource';
-import { adminSetMaintenanceMode } from './functions/admin-set-maintenance-mode/resource';
-import { adminGetCoolPayBalance } from './functions/admin-get-coolpay-balance/resource';
-import { adminSearchUsers } from './functions/admin-search-users/resource';
-import { finalizeOrder } from './functions/finalize-order/resource';
-import { adminWithdrawPlatformBalance } from './functions/admin-withdraw-platform-balance/resource';
-import { updateProfile } from './functions/update-profile/resource';
-import { adminGetTotalUsersBalance } from './functions/admin-get-total-users-balance/resource';
-
-
-
+import { defineBackend } from "@aws-amplify/backend";
+import { auth } from "./auth/resource";
+import { data } from "./data/resource";
+import { storage } from "./storage/resource";
+import {
+  aws_s3 as s3,
+  aws_iam as iam,
+  aws_lambda as lambda,
+} from "aws-cdk-lib";
+import { FunctionUrlAuthType } from "aws-cdk-lib/aws-lambda";
+import { initKpayPayment } from "./functions/init-kpay-payment/resource";
+import { kpayWebhook } from "./functions/kpay-webhook/resource";
+import { initCoolPayPayment } from "./functions/init-coolpay-payment/resource";
+import { coolPayWebhook } from "./functions/coolpay-webhook/resource";
+import { initCoolPayPayout } from "./functions/init-coolpay-payout/resource";
+import { checkCoolPayPayoutStatus } from "./functions/check-coolpay-payout-status/resource";
+import { adminBlockUser } from "./functions/admin-block-user/resource";
+import { adminSetMaintenanceMode } from "./functions/admin-set-maintenance-mode/resource";
+import { adminGetCoolPayBalance } from "./functions/admin-get-coolpay-balance/resource";
+import { adminSearchUsers } from "./functions/admin-search-users/resource";
+import { finalizeOrder } from "./functions/finalize-order/resource";
+import { adminWithdrawPlatformBalance } from "./functions/admin-withdraw-platform-balance/resource";
+import { updateProfile } from "./functions/update-profile/resource";
+import { adminGetTotalUsersBalance } from "./functions/admin-get-total-users-balance/resource";
+import { rejectOrder } from "./functions/reject-order/resource";
 
 const backend = defineBackend({
   auth,
@@ -40,45 +42,60 @@ const backend = defineBackend({
   adminWithdrawPlatformBalance,
   updateProfile,
   adminGetTotalUsersBalance,
+  rejectOrder,
 });
-
-
 
 // Accès public en lecture pour les images d'articles
 const bucket = backend.storage.resources.bucket;
 
-
 // --- K-PAY ---
-const paymentIntentTable = backend.data.resources.tables['PaymentIntent'];
-const balanceTable = backend.data.resources.tables['Balance'];
-const transactionTable = backend.data.resources.tables['Transaction'];
-const kpayWebhookLambda = backend.kpayWebhook.resources.lambda as lambda.Function;
+const paymentIntentTable = backend.data.resources.tables["PaymentIntent"];
+const balanceTable = backend.data.resources.tables["Balance"];
+const transactionTable = backend.data.resources.tables["Transaction"];
+const kpayWebhookLambda = backend.kpayWebhook.resources
+  .lambda as lambda.Function;
 
 paymentIntentTable.grantReadWriteData(kpayWebhookLambda);
 balanceTable.grantReadWriteData(kpayWebhookLambda);
 transactionTable.grantReadWriteData(kpayWebhookLambda);
 
-kpayWebhookLambda.addEnvironment('PAYMENT_INTENT_TABLE_NAME', paymentIntentTable.tableName);
-kpayWebhookLambda.addEnvironment('BALANCE_TABLE_NAME', balanceTable.tableName);
-kpayWebhookLambda.addEnvironment('TRANSACTION_TABLE_NAME', transactionTable.tableName);
+kpayWebhookLambda.addEnvironment(
+  "PAYMENT_INTENT_TABLE_NAME",
+  paymentIntentTable.tableName,
+);
+kpayWebhookLambda.addEnvironment("BALANCE_TABLE_NAME", balanceTable.tableName);
+kpayWebhookLambda.addEnvironment(
+  "TRANSACTION_TABLE_NAME",
+  transactionTable.tableName,
+);
 
 const webhookUrl = kpayWebhookLambda.addFunctionUrl({
   authType: FunctionUrlAuthType.NONE,
 });
 
 // --- My-CoolPay ---
-const coolPayIntentTable = backend.data.resources.tables['CoolPayIntent'];
-const balanceTable2 = backend.data.resources.tables['Balance'];
-const transactionTable2 = backend.data.resources.tables['Transaction'];
-const coolPayWebhookLambda = backend.coolPayWebhook.resources.lambda as lambda.Function;
+const coolPayIntentTable = backend.data.resources.tables["CoolPayIntent"];
+const balanceTable2 = backend.data.resources.tables["Balance"];
+const transactionTable2 = backend.data.resources.tables["Transaction"];
+const coolPayWebhookLambda = backend.coolPayWebhook.resources
+  .lambda as lambda.Function;
 
 coolPayIntentTable.grantReadWriteData(coolPayWebhookLambda);
 balanceTable2.grantReadWriteData(coolPayWebhookLambda);
 transactionTable2.grantReadWriteData(coolPayWebhookLambda);
 
-coolPayWebhookLambda.addEnvironment('COOLPAY_INTENT_TABLE_NAME', coolPayIntentTable.tableName);
-coolPayWebhookLambda.addEnvironment('BALANCE_TABLE_NAME', balanceTable2.tableName);
-coolPayWebhookLambda.addEnvironment('TRANSACTION_TABLE_NAME', transactionTable2.tableName);
+coolPayWebhookLambda.addEnvironment(
+  "COOLPAY_INTENT_TABLE_NAME",
+  coolPayIntentTable.tableName,
+);
+coolPayWebhookLambda.addEnvironment(
+  "BALANCE_TABLE_NAME",
+  balanceTable2.tableName,
+);
+coolPayWebhookLambda.addEnvironment(
+  "TRANSACTION_TABLE_NAME",
+  transactionTable2.tableName,
+);
 
 const coolPayWebhookUrl = coolPayWebhookLambda.addFunctionUrl({
   authType: FunctionUrlAuthType.NONE,
@@ -86,19 +103,22 @@ const coolPayWebhookUrl = coolPayWebhookLambda.addFunctionUrl({
 
 bucket.addToResourcePolicy(
   new iam.PolicyStatement({
-    sid: 'PublicReadArticleImages',
+    sid: "PublicReadArticleImages",
     effect: iam.Effect.ALLOW,
     principals: [new iam.AnyPrincipal()],
-    actions: ['s3:GetObject'],
+    actions: ["s3:GetObject"],
     resources: [`${bucket.bucketArn}/articles/*`],
-  })
+  }),
 );
 
 // ---- Retrait CoolPay ----
-const coolPayPayoutIntentTable = backend.data.resources.tables['CoolPayPayoutIntent'];
+const coolPayPayoutIntentTable =
+  backend.data.resources.tables["CoolPayPayoutIntent"];
 coolPayPayoutIntentTable.grantReadWriteData(coolPayWebhookLambda);
-coolPayWebhookLambda.addEnvironment('COOLPAY_PAYOUT_INTENT_TABLE_NAME', coolPayPayoutIntentTable.tableName);
-
+coolPayWebhookLambda.addEnvironment(
+  "COOLPAY_PAYOUT_INTENT_TABLE_NAME",
+  coolPayPayoutIntentTable.tableName,
+);
 
 // Autoriser explicitement l'accès public par politique (nécessaire en plus du bucket policy)
 const cfnBucket = bucket.node.defaultChild as s3.CfnBucket;
@@ -109,113 +129,183 @@ cfnBucket.publicAccessBlockConfiguration = {
   restrictPublicBuckets: false,
 };
 
-
-const userProfileTable = backend.data.resources.tables['UserProfile'];
-const appConfigTable = backend.data.resources.tables['AppConfig'];
+const userProfileTable = backend.data.resources.tables["UserProfile"];
+const appConfigTable = backend.data.resources.tables["AppConfig"];
 const userPoolId = backend.auth.resources.userPool.userPoolId;
 const userPoolClientId = backend.auth.resources.userPoolClient.userPoolClientId;
 
-
-
 // Update UserProfile
-const updateProfileLambda = backend.updateProfile.resources.lambda as lambda.Function;
+const updateProfileLambda = backend.updateProfile.resources
+  .lambda as lambda.Function;
 userProfileTable.grantReadWriteData(updateProfileLambda);
-updateProfileLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
-updateProfileLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
-updateProfileLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+updateProfileLambda.addEnvironment(
+  "USER_PROFILE_TABLE_NAME",
+  userProfileTable.tableName,
+);
+updateProfileLambda.addEnvironment("COGNITO_USER_POOL_ID", userPoolId);
+updateProfileLambda.addEnvironment("COGNITO_CLIENT_ID", userPoolClientId);
 const updateProfileUrl = updateProfileLambda.addFunctionUrl({
   authType: FunctionUrlAuthType.NONE,
   cors: {
     allowedOrigins: [
-      'https://s-kalify.com',
-      'http://localhost:5500',
-      'http://127.0.0.1:5500',
+      "https://s-kalify.com",
+      "http://localhost:5500",
+      "http://127.0.0.1:5500",
     ],
     allowedMethods: [lambda.HttpMethod.POST],
-    allowedHeaders: ['Authorization', 'Content-Type'],
+    allowedHeaders: ["Authorization", "Content-Type"],
   },
 });
 
-
-const adminBlockUserLambda = backend.adminBlockUser.resources.lambda as lambda.Function;
+const adminBlockUserLambda = backend.adminBlockUser.resources
+  .lambda as lambda.Function;
 userProfileTable.grantReadWriteData(adminBlockUserLambda);
-adminBlockUserLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
-adminBlockUserLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
-adminBlockUserLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
-const adminBlockUserUrl = adminBlockUserLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+adminBlockUserLambda.addEnvironment(
+  "USER_PROFILE_TABLE_NAME",
+  userProfileTable.tableName,
+);
+adminBlockUserLambda.addEnvironment("COGNITO_USER_POOL_ID", userPoolId);
+adminBlockUserLambda.addEnvironment("COGNITO_CLIENT_ID", userPoolClientId);
+const adminBlockUserUrl = adminBlockUserLambda.addFunctionUrl({
+  authType: FunctionUrlAuthType.NONE,
+});
 
-const adminSetMaintenanceModeLambda = backend.adminSetMaintenanceMode.resources.lambda as lambda.Function;
+const adminSetMaintenanceModeLambda = backend.adminSetMaintenanceMode.resources
+  .lambda as lambda.Function;
 userProfileTable.grantReadWriteData(adminSetMaintenanceModeLambda);
 appConfigTable.grantReadWriteData(adminSetMaintenanceModeLambda);
-adminSetMaintenanceModeLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
-adminSetMaintenanceModeLambda.addEnvironment('APP_CONFIG_TABLE_NAME', appConfigTable.tableName);
-adminSetMaintenanceModeLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
-adminSetMaintenanceModeLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
-const adminSetMaintenanceModeUrl = adminSetMaintenanceModeLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+adminSetMaintenanceModeLambda.addEnvironment(
+  "USER_PROFILE_TABLE_NAME",
+  userProfileTable.tableName,
+);
+adminSetMaintenanceModeLambda.addEnvironment(
+  "APP_CONFIG_TABLE_NAME",
+  appConfigTable.tableName,
+);
+adminSetMaintenanceModeLambda.addEnvironment(
+  "COGNITO_USER_POOL_ID",
+  userPoolId,
+);
+adminSetMaintenanceModeLambda.addEnvironment(
+  "COGNITO_CLIENT_ID",
+  userPoolClientId,
+);
+const adminSetMaintenanceModeUrl = adminSetMaintenanceModeLambda.addFunctionUrl(
+  { authType: FunctionUrlAuthType.NONE },
+);
 
-const adminGetCoolPayBalanceLambda = backend.adminGetCoolPayBalance.resources.lambda as lambda.Function;
+const adminGetCoolPayBalanceLambda = backend.adminGetCoolPayBalance.resources
+  .lambda as lambda.Function;
 userProfileTable.grantReadWriteData(adminGetCoolPayBalanceLambda);
-adminGetCoolPayBalanceLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
-adminGetCoolPayBalanceLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
-adminGetCoolPayBalanceLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
-const adminGetCoolPayBalanceUrl = adminGetCoolPayBalanceLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+adminGetCoolPayBalanceLambda.addEnvironment(
+  "USER_PROFILE_TABLE_NAME",
+  userProfileTable.tableName,
+);
+adminGetCoolPayBalanceLambda.addEnvironment("COGNITO_USER_POOL_ID", userPoolId);
+adminGetCoolPayBalanceLambda.addEnvironment(
+  "COGNITO_CLIENT_ID",
+  userPoolClientId,
+);
+const adminGetCoolPayBalanceUrl = adminGetCoolPayBalanceLambda.addFunctionUrl({
+  authType: FunctionUrlAuthType.NONE,
+});
 
-
-const adminSearchUsersLambda = backend.adminSearchUsers.resources.lambda as lambda.Function;
+const adminSearchUsersLambda = backend.adminSearchUsers.resources
+  .lambda as lambda.Function;
 userProfileTable.grantReadData(adminSearchUsersLambda); // NOUVEAU : lecture seule suffit
-adminSearchUsersLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
-adminSearchUsersLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
-adminSearchUsersLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
-const adminSearchUsersUrl = adminSearchUsersLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
-
+adminSearchUsersLambda.addEnvironment(
+  "USER_PROFILE_TABLE_NAME",
+  userProfileTable.tableName,
+);
+adminSearchUsersLambda.addEnvironment("COGNITO_USER_POOL_ID", userPoolId);
+adminSearchUsersLambda.addEnvironment("COGNITO_CLIENT_ID", userPoolClientId);
+const adminSearchUsersUrl = adminSearchUsersLambda.addFunctionUrl({
+  authType: FunctionUrlAuthType.NONE,
+});
 
 // Balance Globale
 
-const adminGetTotalUsersBalanceLambda = backend.adminGetTotalUsersBalance.resources.lambda as lambda.Function;
+const adminGetTotalUsersBalanceLambda = backend.adminGetTotalUsersBalance
+  .resources.lambda as lambda.Function;
 userProfileTable.grantReadData(adminGetTotalUsersBalanceLambda);
 balanceTable.grantReadData(adminGetTotalUsersBalanceLambda);
-adminGetTotalUsersBalanceLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
-adminGetTotalUsersBalanceLambda.addEnvironment('BALANCE_TABLE_NAME', balanceTable.tableName);
-adminGetTotalUsersBalanceLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
-adminGetTotalUsersBalanceLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
-const adminGetTotalUsersBalanceUrl = adminGetTotalUsersBalanceLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+adminGetTotalUsersBalanceLambda.addEnvironment(
+  "USER_PROFILE_TABLE_NAME",
+  userProfileTable.tableName,
+);
+adminGetTotalUsersBalanceLambda.addEnvironment(
+  "BALANCE_TABLE_NAME",
+  balanceTable.tableName,
+);
+adminGetTotalUsersBalanceLambda.addEnvironment(
+  "COGNITO_USER_POOL_ID",
+  userPoolId,
+);
+adminGetTotalUsersBalanceLambda.addEnvironment(
+  "COGNITO_CLIENT_ID",
+  userPoolClientId,
+);
+const adminGetTotalUsersBalanceUrl =
+  adminGetTotalUsersBalanceLambda.addFunctionUrl({
+    authType: FunctionUrlAuthType.NONE,
+  });
 
-
-
-
-const platformBalanceTable = backend.data.resources.tables['PlatformBalance'];
-const platformTransactionTable = backend.data.resources.tables['PlatformTransaction'];
+const platformBalanceTable = backend.data.resources.tables["PlatformBalance"];
+const platformTransactionTable =
+  backend.data.resources.tables["PlatformTransaction"];
 
 // Ajoute aux deux webhooks existants (kpay et coolpay)
 platformBalanceTable.grantReadWriteData(kpayWebhookLambda);
 platformTransactionTable.grantReadWriteData(kpayWebhookLambda);
-kpayWebhookLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalanceTable.tableName);
-kpayWebhookLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
+kpayWebhookLambda.addEnvironment(
+  "PLATFORM_BALANCE_TABLE_NAME",
+  platformBalanceTable.tableName,
+);
+kpayWebhookLambda.addEnvironment(
+  "PLATFORM_TRANSACTION_TABLE_NAME",
+  platformTransactionTable.tableName,
+);
 
 platformBalanceTable.grantReadWriteData(coolPayWebhookLambda);
 platformTransactionTable.grantReadWriteData(coolPayWebhookLambda);
-coolPayWebhookLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalanceTable.tableName);
-coolPayWebhookLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
+coolPayWebhookLambda.addEnvironment(
+  "PLATFORM_BALANCE_TABLE_NAME",
+  platformBalanceTable.tableName,
+);
+coolPayWebhookLambda.addEnvironment(
+  "PLATFORM_TRANSACTION_TABLE_NAME",
+  platformTransactionTable.tableName,
+);
 
-
-
-const adminWithdrawLambda = backend.adminWithdrawPlatformBalance.resources.lambda as lambda.Function;
+const adminWithdrawLambda = backend.adminWithdrawPlatformBalance.resources
+  .lambda as lambda.Function;
 userProfileTable.grantReadData(adminWithdrawLambda); // NOUVEAU : nécessaire pour verifyAdmin
 platformBalanceTable.grantReadWriteData(adminWithdrawLambda);
 platformTransactionTable.grantReadWriteData(adminWithdrawLambda);
-adminWithdrawLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName); // NOUVEAU
-adminWithdrawLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalanceTable.tableName);
-adminWithdrawLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
-adminWithdrawLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
-adminWithdrawLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+adminWithdrawLambda.addEnvironment(
+  "USER_PROFILE_TABLE_NAME",
+  userProfileTable.tableName,
+); // NOUVEAU
+adminWithdrawLambda.addEnvironment(
+  "PLATFORM_BALANCE_TABLE_NAME",
+  platformBalanceTable.tableName,
+);
+adminWithdrawLambda.addEnvironment(
+  "PLATFORM_TRANSACTION_TABLE_NAME",
+  platformTransactionTable.tableName,
+);
+adminWithdrawLambda.addEnvironment("COGNITO_USER_POOL_ID", userPoolId);
+adminWithdrawLambda.addEnvironment("COGNITO_CLIENT_ID", userPoolClientId);
 
-const adminWithdrawUrl = adminWithdrawLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
-
+const adminWithdrawUrl = adminWithdrawLambda.addFunctionUrl({
+  authType: FunctionUrlAuthType.NONE,
+});
 
 // Finalisation de la commande
 
-const orderTable = backend.data.resources.tables['Order'];
-const finalizeOrderLambda = backend.finalizeOrder.resources.lambda as lambda.Function;
+const orderTable = backend.data.resources.tables["Order"];
+const finalizeOrderLambda = backend.finalizeOrder.resources
+  .lambda as lambda.Function;
 
 orderTable.grantReadWriteData(finalizeOrderLambda);
 balanceTable.grantReadWriteData(finalizeOrderLambda);
@@ -224,20 +314,55 @@ platformBalanceTable.grantReadWriteData(finalizeOrderLambda);
 platformTransactionTable.grantReadWriteData(finalizeOrderLambda);
 userProfileTable.grantReadData(finalizeOrderLambda);
 
-finalizeOrderLambda.addEnvironment('ORDER_TABLE_NAME', orderTable.tableName);
-finalizeOrderLambda.addEnvironment('BALANCE_TABLE_NAME', balanceTable.tableName);
-finalizeOrderLambda.addEnvironment('TRANSACTION_TABLE_NAME', transactionTable.tableName);
-finalizeOrderLambda.addEnvironment('PLATFORM_BALANCE_TABLE_NAME', platformBalanceTable.tableName);
-finalizeOrderLambda.addEnvironment('PLATFORM_TRANSACTION_TABLE_NAME', platformTransactionTable.tableName);
-finalizeOrderLambda.addEnvironment('USER_PROFILE_TABLE_NAME', userProfileTable.tableName);
-finalizeOrderLambda.addEnvironment('COGNITO_USER_POOL_ID', userPoolId);
-finalizeOrderLambda.addEnvironment('COGNITO_CLIENT_ID', userPoolClientId);
+finalizeOrderLambda.addEnvironment("ORDER_TABLE_NAME", orderTable.tableName);
+finalizeOrderLambda.addEnvironment(
+  "BALANCE_TABLE_NAME",
+  balanceTable.tableName,
+);
+finalizeOrderLambda.addEnvironment(
+  "TRANSACTION_TABLE_NAME",
+  transactionTable.tableName,
+);
+finalizeOrderLambda.addEnvironment(
+  "PLATFORM_BALANCE_TABLE_NAME",
+  platformBalanceTable.tableName,
+);
+finalizeOrderLambda.addEnvironment(
+  "PLATFORM_TRANSACTION_TABLE_NAME",
+  platformTransactionTable.tableName,
+);
+finalizeOrderLambda.addEnvironment(
+  "USER_PROFILE_TABLE_NAME",
+  userProfileTable.tableName,
+);
+finalizeOrderLambda.addEnvironment("COGNITO_USER_POOL_ID", userPoolId);
+finalizeOrderLambda.addEnvironment("COGNITO_CLIENT_ID", userPoolClientId);
 
-const finalizeOrderUrl = finalizeOrderLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+const finalizeOrderUrl = finalizeOrderLambda.addFunctionUrl({
+  authType: FunctionUrlAuthType.NONE,
+});
 
-
-
-
+const rejectOrderLambda = backend.rejectOrder.resources
+  .lambda as lambda.Function;
+orderTable.grantReadWriteData(rejectOrderLambda);
+balanceTable.grantReadWriteData(rejectOrderLambda);
+transactionTable.grantReadWriteData(rejectOrderLambda);
+userProfileTable.grantReadData(rejectOrderLambda);
+rejectOrderLambda.addEnvironment("ORDER_TABLE_NAME", orderTable.tableName);
+rejectOrderLambda.addEnvironment("BALANCE_TABLE_NAME", balanceTable.tableName);
+rejectOrderLambda.addEnvironment(
+  "TRANSACTION_TABLE_NAME",
+  transactionTable.tableName,
+);
+rejectOrderLambda.addEnvironment(
+  "USER_PROFILE_TABLE_NAME",
+  userProfileTable.tableName,
+);
+rejectOrderLambda.addEnvironment("COGNITO_USER_POOL_ID", userPoolId);
+rejectOrderLambda.addEnvironment("COGNITO_CLIENT_ID", userPoolClientId);
+const rejectOrderUrl = rejectOrderLambda.addFunctionUrl({
+  authType: FunctionUrlAuthType.NONE,
+});
 
 backend.addOutput({
   custom: {
@@ -251,16 +376,6 @@ backend.addOutput({
     adminWithdrawPlatformBalanceUrl: adminWithdrawUrl.url,
     updateProfileUrl: updateProfileUrl.url,
     adminGetTotalUsersBalanceUrl: adminGetTotalUsersBalanceUrl.url,
+    rejectOrderUrl: rejectOrderUrl.url,
   },
 });
-
-
-
-
-
-
-
-
-
-
-

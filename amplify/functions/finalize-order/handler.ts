@@ -1,6 +1,12 @@
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand, ScanCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  GetCommand,
+  UpdateCommand,
+  ScanCommand,
+  TransactWriteCommand,
+} from '@aws-sdk/lib-dynamodb';
 import { randomUUID } from 'crypto';
 
 const ddbClient = new DynamoDBClient({});
@@ -17,6 +23,26 @@ const verifier = CognitoJwtVerifier.create({
   tokenUse: 'id',
   clientId: requireEnv('COGNITO_CLIENT_ID'),
 });
+
+// Retrouve la ligne dont `owner` vaut "<sub>::<username>" : scan paginé, puis vérification exacte de la fin
+async function findByOwner(table: string, username: string): Promise<Record<string, any> | undefined> {
+  let lastKey: Record<string, any> | undefined;
+  do {
+    const page = await ddb.send(new ScanCommand({
+      TableName: table,
+      FilterExpression: 'contains(#owner, :suffix)',
+      ExpressionAttributeNames: { '#owner': 'owner' },
+      ExpressionAttributeValues: { ':suffix': `::${username}` },
+      ExclusiveStartKey: lastKey,
+    }));
+    const hit = page.Items?.find((i) => typeof i.owner === 'string' && i.owner.endsWith(`::${username}`));
+    if (hit) return hit;
+    lastKey = page.LastEvaluatedKey;
+  } while (lastKey);
+  return undefined;
+}
+
+const reply = (body: Record<string, any>) => ({ statusCode: 200, body: JSON.stringify(body) });
 
 export const handler = async (event: any) => {
   try {
@@ -43,10 +69,11 @@ export const handler = async (event: any) => {
     const isSeller = order.sellerOwner === username;
     if (!isBuyer && !isSeller) throw new Error('Vous ne faites pas partie de cette commande');
 
+    if (order.status === 'COMPLETED') return reply({ success: true, orderStatus: 'COMPLETED' });
+    if (order.status === 'REJECTED') return reply({ success: false, message: 'Cette commande a été annulée' });
+
     if (isBuyer) {
-      if (enteredCode !== order.sellerCode) {
-        return { statusCode: 200, body: JSON.stringify({ success: false, message: 'Code incorrect' }) };
-      }
+      if (enteredCode !== order.sellerCode) return reply({ success: false, message: 'Code incorrect' });
       await ddb.send(new UpdateCommand({
         TableName: orderTable,
         Key: { id: orderId },
@@ -54,9 +81,7 @@ export const handler = async (event: any) => {
         ExpressionAttributeValues: { ':code': enteredCode },
       }));
     } else {
-      if (enteredCode !== order.buyerCode) {
-        return { statusCode: 200, body: JSON.stringify({ success: false, message: 'Code incorrect' }) };
-      }
+      if (enteredCode !== order.buyerCode) return reply({ success: false, message: 'Code incorrect' });
       await ddb.send(new UpdateCommand({
         TableName: orderTable,
         Key: { id: orderId },
@@ -71,51 +96,75 @@ export const handler = async (event: any) => {
     const buyerValid = updatedOrder.buyerEnteredCode === updatedOrder.sellerCode;
     const sellerValid = updatedOrder.sellerEnteredCode === updatedOrder.buyerCode;
 
-    if (buyerValid && sellerValid) {
-      try {
-        await ddb.send(new UpdateCommand({
+    if (!(buyerValid && sellerValid)) {
+      return reply({ success: true, orderStatus: updatedOrder.status });
+    }
+
+    const grossAmount = parseFloat(updatedOrder.total);
+    const platformFees = Math.round(grossAmount * 0.06);
+    const netAmount = grossAmount - platformFees;
+
+    // 1. Tout résoudre AVANT d'écrire quoi que ce soit : un compte introuvable fait échouer proprement
+    const sellerBalance = await findByOwner(balanceTable, updatedOrder.sellerOwner);
+    let sellerOwnerValue: string;
+    if (sellerBalance) {
+      sellerOwnerValue = sellerBalance.owner;
+    } else {
+      const sellerProfile = await findByOwner(requireEnv('USER_PROFILE_TABLE_NAME'), updatedOrder.sellerOwner);
+      if (!sellerProfile) {
+        throw new Error(`Compte vendeur introuvable (${updatedOrder.sellerOwner}) — aucune écriture effectuée`);
+      }
+      sellerOwnerValue = sellerProfile.owner;
+    }
+    const sellerBalanceId: string = sellerBalance?.id ?? randomUUID();
+
+    const platformScan = await ddb.send(new ScanCommand({ TableName: platformBalanceTable }));
+    const platformBalance = platformScan.Items?.[0];
+
+    const now = new Date().toISOString();
+
+    // 2. Une seule transaction : la réclamation de la commande et tous les mouvements d'argent, ou rien
+    const items: any[] = [
+      {
+        Update: {
           TableName: orderTable,
           Key: { id: orderId },
           UpdateExpression: 'SET #status = :completed',
-          ConditionExpression: '#status <> :completed',
+          ConditionExpression: '#status <> :completed AND #status <> :rejected',
           ExpressionAttributeNames: { '#status': 'status' },
-          ExpressionAttributeValues: { ':completed': 'COMPLETED' },
-        }));
-      } catch (e: any) {
-        if (e.name === 'ConditionalCheckFailedException') {
-          return { statusCode: 200, body: JSON.stringify({ success: true, orderStatus: 'COMPLETED' }) };
-        }
-        throw e;
-      }
-
-      // NOUVEAU : on arrive ici UNIQUEMENT si la mise à jour conditionnelle a réussi — plus de completedSuccessfully nécessaire
-      const grossAmount = parseFloat(updatedOrder.total); // NOUVEAU : sorti du if, portée correcte désormais
-      const platformFees = Math.round(grossAmount * 0.06);
-      const netAmount = grossAmount - platformFees;
-
-      const sellerScan = await ddb.send(new ScanCommand({
-        TableName: balanceTable,
-        FilterExpression: 'contains(#owner, :sellerSuffix)',
-        ExpressionAttributeNames: { '#owner': 'owner' },
-        ExpressionAttributeValues: { ':sellerSuffix': `::${updatedOrder.sellerOwner}` },
-      }));
-      const sellerBalance = sellerScan.Items?.[0];
-
-      if (sellerBalance) {
-        // Cas normal : le vendeur a déjà un solde existant
-        await ddb.send(new UpdateCommand({
-          TableName: balanceTable,
-          Key: { id: sellerBalance.id },
-          UpdateExpression: 'SET amount = :newAmount',
-          ExpressionAttributeValues: { ':newAmount': (sellerBalance.amount ?? 0) + netAmount },
-        }));
-
-        await ddb.send(new PutCommand({
+          ExpressionAttributeValues: { ':completed': 'COMPLETED', ':rejected': 'REJECTED' },
+        },
+      },
+      sellerBalance
+        ? {
+            Update: {
+              TableName: balanceTable,
+              Key: { id: sellerBalance.id },
+              UpdateExpression: 'SET amount = if_not_exists(amount, :zero) + :delta',
+              ExpressionAttributeValues: { ':zero': 0, ':delta': netAmount },
+            },
+          }
+        : {
+            Put: {
+              TableName: balanceTable,
+              Item: {
+                id: sellerBalanceId,
+                owner: sellerOwnerValue,
+                amount: netAmount,
+                currency: 'XAF',
+                createdAt: now,
+                updatedAt: now,
+                __typename: 'Balance',
+              },
+            },
+          },
+      {
+        Put: {
           TableName: transactionTable,
           Item: {
             id: randomUUID(),
-            owner: sellerBalance.owner,
-            balanceId: sellerBalance.id,
+            owner: sellerOwnerValue,
+            balanceId: sellerBalanceId,
             amount: netAmount,
             grossAmount,
             aggregatorFees: 0,
@@ -123,99 +172,64 @@ export const handler = async (event: any) => {
             type: 'CREDIT',
             currency: 'XAF',
             reason: `Vente : ${updatedOrder.articleName}`,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: now,
+            updatedAt: now,
             __typename: 'Transaction',
           },
-        }));
-      } else { // NOUVEAU : le vendeur n'a encore jamais eu de solde — on en crée un, correctement identifié
-        const userProfileTable = requireEnv('USER_PROFILE_TABLE_NAME');
-
-        const profileScan = await ddb.send(new ScanCommand({
-          TableName: userProfileTable,
-          FilterExpression: 'username = :username',
-          ExpressionAttributeValues: { ':username': updatedOrder.sellerOwner },
-        }));
-        const sellerProfile = profileScan.Items?.[0];
-
-        if (sellerProfile) {
-          const newBalanceId = randomUUID();
-
-          await ddb.send(new PutCommand({
-            TableName: balanceTable,
-            Item: {
-              id: newBalanceId,
-              owner: sellerProfile.owner, // NOUVEAU : le vrai composite sub::username, retrouvé via UserProfile
-              amount: netAmount,
-              currency: 'XAF',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              __typename: 'Balance',
-            },
-          }));
-
-          await ddb.send(new PutCommand({
-            TableName: transactionTable,
-            Item: {
-              id: randomUUID(),
-              owner: sellerProfile.owner,
-              balanceId: newBalanceId,
-              amount: netAmount,
-              grossAmount,
-              aggregatorFees: 0,
-              platformFees,
-              type: 'CREDIT',
-              currency: 'XAF',
-              reason: `Vente : ${updatedOrder.articleName}`,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              __typename: 'Transaction',
-            },
-          }));
-        } else {
-          // NOUVEAU : situation anormale — un vendeur sans UserProfile ne devrait jamais exister,
-          // on logue clairement plutôt que d'échouer silencieusement
-          console.error(`Impossible de créer le solde vendeur : UserProfile introuvable pour ${updatedOrder.sellerOwner}`);
-        }
-      }
-      // ⚠️ si sellerBalance est introuvable (vendeur sans aucun solde préexistant), rien n'est crédité ici — cas à surveiller
-
-      const platformScan = await ddb.send(new ScanCommand({ TableName: platformBalanceTable }));
-      const platformBalance = platformScan.Items?.[0];
-
-      if (platformBalance) {
-        await ddb.send(new UpdateCommand({
-          TableName: platformBalanceTable,
-          Key: { id: platformBalance.id },
-          UpdateExpression: 'SET amount = :newAmount',
-          ExpressionAttributeValues: { ':newAmount': (platformBalance.amount ?? 0) + platformFees },
-        }));
-      } else {
-        await ddb.send(new PutCommand({
-          TableName: platformBalanceTable,
-          Item: { id: randomUUID(), amount: platformFees, currency: 'XAF', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), __typename: 'PlatformBalance' },
-        }));
-      }
-
-      await ddb.send(new PutCommand({
-        TableName: platformTransactionTable,
-        Item: {
-          id: randomUUID(),
-          amount: platformFees,
-          type: 'CREDIT',
-          source: 'SALE_COMMISSION',
-          reason: `Commission vente — ${updatedOrder.articleName}`,
-          relatedOrderId: orderId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          __typename: 'PlatformTransaction',
         },
-      }));
+      },
+      platformBalance
+        ? {
+            Update: {
+              TableName: platformBalanceTable,
+              Key: { id: platformBalance.id },
+              UpdateExpression: 'SET amount = if_not_exists(amount, :zero) + :delta',
+              ExpressionAttributeValues: { ':zero': 0, ':delta': platformFees },
+            },
+          }
+        : {
+            Put: {
+              TableName: platformBalanceTable,
+              Item: { id: randomUUID(), amount: platformFees, currency: 'XAF', createdAt: now, updatedAt: now, __typename: 'PlatformBalance' },
+            },
+          },
+      {
+        Put: {
+          TableName: platformTransactionTable,
+          Item: {
+            id: randomUUID(),
+            amount: platformFees,
+            type: 'CREDIT',
+            source: 'SALE_COMMISSION',
+            reason: `Commission vente — ${updatedOrder.articleName}`,
+            relatedOrderId: orderId,
+            createdAt: now,
+            updatedAt: now,
+            __typename: 'PlatformTransaction',
+          },
+        },
+      },
+    ];
 
-      return { statusCode: 200, body: JSON.stringify({ success: true, orderStatus: 'COMPLETED' }) };
+    try {
+      await ddb.send(new TransactWriteCommand({ TransactItems: items }));
+    } catch (e: any) {
+      if (e.name === 'TransactionCanceledException') {
+        const reasons = e.CancellationReasons ?? [];
+        if (reasons[0]?.Code === 'ConditionalCheckFailed') {
+          // La commande a été terminée ou annulée entre-temps
+          const current = await ddb.send(new GetCommand({ TableName: orderTable, Key: { id: orderId } }));
+          if (current.Item?.status === 'REJECTED') {
+            return reply({ success: false, message: 'Cette commande a été annulée' });
+          }
+          return reply({ success: true, orderStatus: 'COMPLETED' });
+        }
+        throw new Error('Une opération simultanée est en cours, réessayez dans un instant');
+      }
+      throw e;
     }
 
-    return { statusCode: 200, body: JSON.stringify({ success: true, orderStatus: updatedOrder.status }) };
+    return reply({ success: true, orderStatus: 'COMPLETED' });
   } catch (e: any) {
     return { statusCode: 403, body: JSON.stringify({ success: false, message: e.message }) };
   }

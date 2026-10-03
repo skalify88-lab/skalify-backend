@@ -157,6 +157,10 @@ const updateProfileUrl = updateProfileLambda.addFunctionUrl({
   },
 });
 
+const enterpriseTable = backend.data.resources.tables['Enterprise'];
+enterpriseTable.grantReadData(updateProfileLambda);
+updateProfileLambda.addEnvironment('ENTERPRISE_TABLE_NAME', enterpriseTable.tableName);
+
 const adminBlockUserLambda = backend.adminBlockUser.resources
   .lambda as lambda.Function;
 userProfileTable.grantReadWriteData(adminBlockUserLambda);

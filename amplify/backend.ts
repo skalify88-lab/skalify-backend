@@ -342,9 +342,7 @@ finalizeOrderLambda.addEnvironment(
 finalizeOrderLambda.addEnvironment("COGNITO_USER_POOL_ID", userPoolId);
 finalizeOrderLambda.addEnvironment("COGNITO_CLIENT_ID", userPoolClientId);
 
-const finalizeOrderUrl = finalizeOrderLambda.addFunctionUrl({
-  authType: FunctionUrlAuthType.NONE,
-});
+
 
 const rejectOrderLambda = backend.rejectOrder.resources
   .lambda as lambda.Function;
@@ -364,9 +362,7 @@ rejectOrderLambda.addEnvironment(
 );
 rejectOrderLambda.addEnvironment("COGNITO_USER_POOL_ID", userPoolId);
 rejectOrderLambda.addEnvironment("COGNITO_CLIENT_ID", userPoolClientId);
-const rejectOrderUrl = rejectOrderLambda.addFunctionUrl({
-  authType: FunctionUrlAuthType.NONE,
-});
+
 
 
 const finalizeOrderUrl = finalizeOrderLambda.addFunctionUrl({

@@ -23,6 +23,9 @@ import { adminWithdrawPlatformBalance } from "./functions/admin-withdraw-platfor
 import { updateProfile } from "./functions/update-profile/resource";
 import { adminGetTotalUsersBalance } from "./functions/admin-get-total-users-balance/resource";
 import { rejectOrder } from "./functions/reject-order/resource";
+import { shareArticle } from "./functions/share-article/resource";
+
+
 
 const backend = defineBackend({
   auth,
@@ -364,7 +367,6 @@ rejectOrderLambda.addEnvironment("COGNITO_USER_POOL_ID", userPoolId);
 rejectOrderLambda.addEnvironment("COGNITO_CLIENT_ID", userPoolClientId);
 
 
-
 const finalizeOrderUrl = finalizeOrderLambda.addFunctionUrl({
   authType: FunctionUrlAuthType.NONE,
   cors: {
@@ -391,6 +393,15 @@ const rejectOrderUrl = rejectOrderLambda.addFunctionUrl({
   },
 });
 
+
+const articleTable = backend.data.resources.tables["Article"];
+const shareArticleLambda = backend.shareArticle.resources.lambda as lambda.Function;
+articleTable.grantReadData(shareArticleLambda);
+shareArticleLambda.addEnvironment("ARTICLE_TABLE_NAME", articleTable.tableName);
+const shareArticleUrl = shareArticleLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+
+
+
 backend.addOutput({
   custom: {
     kpayWebhookUrl: webhookUrl.url,
@@ -404,5 +415,6 @@ backend.addOutput({
     updateProfileUrl: updateProfileUrl.url,
     adminGetTotalUsersBalanceUrl: adminGetTotalUsersBalanceUrl.url,
     rejectOrderUrl: rejectOrderUrl.url,
+    shareArticleUrl: shareArticleUrl.url,
   },
 });

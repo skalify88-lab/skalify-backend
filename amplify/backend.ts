@@ -46,6 +46,7 @@ const backend = defineBackend({
   updateProfile,
   adminGetTotalUsersBalance,
   rejectOrder,
+  shareArticle,
 });
 
 // Accès public en lecture pour les images d'articles

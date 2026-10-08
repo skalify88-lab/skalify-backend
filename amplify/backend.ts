@@ -24,6 +24,7 @@ import { updateProfile } from "./functions/update-profile/resource";
 import { adminGetTotalUsersBalance } from "./functions/admin-get-total-users-balance/resource";
 import { rejectOrder } from "./functions/reject-order/resource";
 import { shareArticle } from "./functions/share-article/resource";
+import { shareEnterprise } from "./functions/share-enterprise/resource";
 
 
 
@@ -47,6 +48,7 @@ const backend = defineBackend({
   adminGetTotalUsersBalance,
   rejectOrder,
   shareArticle,
+  shareEnterprise,
 });
 
 // Accès public en lecture pour les images d'articles
@@ -401,6 +403,11 @@ articleTable.grantReadData(shareArticleLambda);
 shareArticleLambda.addEnvironment("ARTICLE_TABLE_NAME", articleTable.tableName);
 const shareArticleUrl = shareArticleLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
 
+const enterpriseTableForShare = backend.data.resources.tables["Enterprise"];
+const shareEnterpriseLambda = backend.shareEnterprise.resources.lambda as lambda.Function;
+enterpriseTableForShare.grantReadData(shareEnterpriseLambda);
+shareEnterpriseLambda.addEnvironment("ENTERPRISE_TABLE_NAME", enterpriseTableForShare.tableName);
+const shareEnterpriseUrl = shareEnterpriseLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
 
 
 backend.addOutput({
@@ -417,5 +424,6 @@ backend.addOutput({
     adminGetTotalUsersBalanceUrl: adminGetTotalUsersBalanceUrl.url,
     rejectOrderUrl: rejectOrderUrl.url,
     shareArticleUrl: shareArticleUrl.url,
+    shareEnterpriseUrl: shareEnterpriseUrl.url,
   },
 });

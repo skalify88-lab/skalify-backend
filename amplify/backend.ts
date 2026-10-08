@@ -117,6 +117,16 @@ bucket.addToResourcePolicy(
   }),
 );
 
+bucket.addToResourcePolicy(
+  new iam.PolicyStatement({
+    sid: "PublicReadEnterpriseLogos",
+    effect: iam.Effect.ALLOW,
+    principals: [new iam.AnyPrincipal()],
+    actions: ["s3:GetObject"],
+    resources: [`${bucket.bucketArn}/enterprise-logos/*`],
+  }),
+);
+
 // ---- Retrait CoolPay ----
 const coolPayPayoutIntentTable =
   backend.data.resources.tables["CoolPayPayoutIntent"];

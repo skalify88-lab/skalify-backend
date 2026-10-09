@@ -20,10 +20,13 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.1124.0",
-    "@aws-sdk/lib-dynamodb": "^3.1124.0",
+    "@aws-sdk/client-dynamodb": "^3.1148.0",
+    "@aws-sdk/lib-dynamodb": "^3.1148.0",
+    "@aws-sdk/util-dynamodb": "^3.996.9",
     "aws-amplify": "^6.19.0",
     "aws-jwt-verify": "^5.2.1",
-    "undici": "^7.29.1"
+    "firebase-admin": "^14.5.0",
+    "undici": "^7.29.1",
+    "web-push": "^3.6.7"
   }
 }

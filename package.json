@@ -13,6 +13,7 @@
     "@aws-amplify/backend": "^1.23.0",
     "@aws-amplify/backend-cli": "^1.8.3",
     "@types/node": "^26.4.1",
+    "@types/web-push": "^3.6.4",
     "aws-cdk-lib": "^2.244.0",
     "constructs": "^10.7.1",
     "esbuild": "^0.28.1",

@@ -426,15 +426,30 @@ shareEnterpriseLambda.addEnvironment("ENTERPRISE_TABLE_NAME", enterpriseTableFor
 const shareEnterpriseUrl = shareEnterpriseLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
 
 
+
 // --- Notifications push : broadcast admin ---
 const pushSubscriptionTable = backend.data.resources.tables["PushSubscription"];
 const adminSendNotificationLambda = backend.adminSendNotification.resources
   .lambda as lambda.Function;
+
 pushSubscriptionTable.grantReadData(adminSendNotificationLambda);
+userProfileTable.grantReadData(adminSendNotificationLambda);
 adminSendNotificationLambda.addEnvironment(
   "PUSH_SUBSCRIPTION_TABLE_NAME",
   pushSubscriptionTable.tableName,
 );
+adminSendNotificationLambda.addEnvironment(
+  "USER_PROFILE_TABLE_NAME",
+  userProfileTable.tableName,
+);
+adminSendNotificationLambda.addEnvironment("COGNITO_USER_POOL_ID", userPoolId);
+adminSendNotificationLambda.addEnvironment("COGNITO_CLIENT_ID", userPoolClientId);
+
+const adminSendNotificationUrl = adminSendNotificationLambda.addFunctionUrl({
+  authType: FunctionUrlAuthType.NONE,
+});
+
+
 
 // --- Notification "nouvelle commande" (déclenchée par DynamoDB Stream sur Order) ---
 const notifyNewOrderLambda = backend.notifyNewOrder.resources.lambda as lambda.Function;
@@ -468,5 +483,6 @@ backend.addOutput({
     rejectOrderUrl: rejectOrderUrl.url,
     shareArticleUrl: shareArticleUrl.url,
     shareEnterpriseUrl: shareEnterpriseUrl.url,
+    adminSendNotificationUrl: adminSendNotificationUrl.url,
   },
 });

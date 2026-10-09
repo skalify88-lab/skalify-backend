@@ -25,6 +25,10 @@ import { adminGetTotalUsersBalance } from "./functions/admin-get-total-users-bal
 import { rejectOrder } from "./functions/reject-order/resource";
 import { shareArticle } from "./functions/share-article/resource";
 import { shareEnterprise } from "./functions/share-enterprise/resource";
+import { adminSendNotification } from "./functions/admin-send-notification/resource";
+import { notifyNewOrder } from "./functions/notify-new-order/resource";
+import { DynamoEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
+
 
 
 
@@ -49,6 +53,8 @@ const backend = defineBackend({
   rejectOrder,
   shareArticle,
   shareEnterprise,
+  adminSendNotification,
+  notifyNewOrder,
 });
 
 // Accès public en lecture pour les images d'articles
@@ -418,6 +424,33 @@ const shareEnterpriseLambda = backend.shareEnterprise.resources.lambda as lambda
 enterpriseTableForShare.grantReadData(shareEnterpriseLambda);
 shareEnterpriseLambda.addEnvironment("ENTERPRISE_TABLE_NAME", enterpriseTableForShare.tableName);
 const shareEnterpriseUrl = shareEnterpriseLambda.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+
+
+// --- Notifications push : broadcast admin ---
+const pushSubscriptionTable = backend.data.resources.tables["PushSubscription"];
+const adminSendNotificationLambda = backend.adminSendNotification.resources
+  .lambda as lambda.Function;
+pushSubscriptionTable.grantReadData(adminSendNotificationLambda);
+adminSendNotificationLambda.addEnvironment(
+  "PUSH_SUBSCRIPTION_TABLE_NAME",
+  pushSubscriptionTable.tableName,
+);
+
+// --- Notification "nouvelle commande" (déclenchée par DynamoDB Stream sur Order) ---
+const notifyNewOrderLambda = backend.notifyNewOrder.resources.lambda as lambda.Function;
+pushSubscriptionTable.grantReadData(notifyNewOrderLambda);
+notifyNewOrderLambda.addEnvironment(
+  "PUSH_SUBSCRIPTION_TABLE_NAME",
+  pushSubscriptionTable.tableName,
+);
+
+notifyNewOrderLambda.addEventSource(
+  new DynamoEventSource(orderTable, {
+    startingPosition: lambda.StartingPosition.LATEST,
+    batchSize: 1,
+    retryAttempts: 2,
+  }),
+);
 
 
 backend.addOutput({

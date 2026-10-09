@@ -7,6 +7,7 @@ import { checkCoolPayPayoutStatus } from '../functions/check-coolpay-payout-stat
 import { adminBlockUser } from '../functions/admin-block-user/resource';
 import { adminSetMaintenanceMode } from '../functions/admin-set-maintenance-mode/resource';
 import { adminGetCoolPayBalance } from '../functions/admin-get-coolpay-balance/resource';
+import { adminSendNotification } from '../functions/admin-send-notification/resource';
 
 
 const schema = a.schema({
@@ -381,6 +382,29 @@ const schema = a.schema({
         .authorization((allow) => [
           allow.owner(),
         ]),
+
+        PushSubscription: a
+            .model({
+              id: a.id(),
+              platform: a.enum(['WEB', 'ANDROID']),
+              endpoint: a.string(),
+              p256dh: a.string(),
+              authKey: a.string(),
+              fcmToken: a.string(),
+            })
+            .authorization((allow) => [
+              allow.owner(),
+            ]),
+
+        adminSendNotificationMutation: a
+            .mutation()
+            .arguments({
+              title: a.string().required(),
+              body: a.string().required(),
+            })
+            .returns(a.ref('AdminActionResult')) // réutilise le customType existant
+            .authorization((allow) => [allow.authenticated()])
+            .handler(a.handler.function(adminSendNotification)),
 
 
 });

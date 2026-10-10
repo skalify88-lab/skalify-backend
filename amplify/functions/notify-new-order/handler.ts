@@ -27,7 +27,9 @@ async function findSubscriptionsByUsername(username: string): Promise<PushTarget
       ExpressionAttributeValues: { ":suffix": `::${username}` },
       ExclusiveStartKey,
     }));
+    console.log(`[notifyNewOrder] scan page: ${page.Items?.length ?? 0} items, table=${table}, suffix=::${username}`);
     for (const item of page.Items ?? []) {
+      console.log(`[notifyNewOrder] candidate owner="${item.owner}"`);
       if (typeof item.owner === "string" && item.owner.endsWith(`::${username}`)) {
         targets.push({
           platform: item.platform,
@@ -45,20 +47,44 @@ async function findSubscriptionsByUsername(username: string): Promise<PushTarget
 }
 
 export const handler = async (event: DynamoDBStreamEvent) => {
+  console.log(`[notifyNewOrder] event received, ${event.Records.length} record(s)`);
+
   for (const record of event.Records) {
-    if (record.eventName !== "INSERT" || !record.dynamodb?.NewImage) continue;
+    console.log(`[notifyNewOrder] record eventName=${record.eventName}`);
+
+    if (record.eventName !== "INSERT" || !record.dynamodb?.NewImage) {
+      console.log("[notifyNewOrder] skip: not an INSERT or missing NewImage");
+      continue;
+    }
 
     const order = unmarshall(record.dynamodb.NewImage as any);
+    console.log("[notifyNewOrder] order payload:", JSON.stringify(order));
+
     const sellerUsername = order.sellerOwner as string | undefined;
-    if (!sellerUsername) continue;
+    console.log(`[notifyNewOrder] sellerUsername="${sellerUsername}"`);
+
+    if (!sellerUsername) {
+      console.log("[notifyNewOrder] skip: order.sellerOwner is missing/undefined");
+      continue;
+    }
 
     const targets = await findSubscriptionsByUsername(sellerUsername);
-    if (targets.length === 0) continue;
+    console.log(`[notifyNewOrder] found ${targets.length} target(s)`);
 
-    await sendPushToMany(targets, {
-      title: "Nouvelle commande",
-      body: `${order.articleName ?? "Un article"} — quantité ${order.quantity ?? 1}`,
-      url: "/interface_user/orders/", // ajuste si le vrai chemin diffère
-    });
+    if (targets.length === 0) {
+      console.log("[notifyNewOrder] skip: no matching PushSubscription for this seller");
+      continue;
+    }
+
+    try {
+      const result = await sendPushToMany(targets, {
+        title: "Nouvelle commande",
+        body: `${order.articleName ?? "Un article"} — quantité ${order.quantity ?? 1}`,
+        url: "/interface_user/orders/", // ajuste si le vrai chemin diffère
+      });
+      console.log("[notifyNewOrder] sendPushToMany result:", JSON.stringify(result));
+    } catch (err) {
+      console.error("[notifyNewOrder] sendPushToMany threw:", err);
+    }
   }
 };

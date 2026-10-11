@@ -25,8 +25,10 @@ function ensureFcmInitialized() {
   }
   const raw = process.env.FCM_SERVICE_ACCOUNT_KEY;
   if (!raw) throw new Error("FCM_SERVICE_ACCOUNT_KEY manquant");
+  console.log(`[push-sender] FCM key length=${raw.length}, starts with="${raw.slice(0, 12)}"`);
   initializeApp({ credential: cert(JSON.parse(raw)) });
   fcmInitialized = true;
+
 }
 
 function ensureWebPushConfigured() {

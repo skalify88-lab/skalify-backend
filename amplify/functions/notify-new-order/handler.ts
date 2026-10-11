@@ -3,6 +3,9 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
 import { sendPushToMany, type PushTarget } from "../push-sender/sender";
+import { env } from "$amplify/env/notify-new-order";
+
+
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -47,6 +50,10 @@ async function findSubscriptionsByUsername(username: string): Promise<PushTarget
 }
 
 export const handler = async (event: DynamoDBStreamEvent) => {
+  process.env.FCM_SERVICE_ACCOUNT_KEY = env.FCM_SERVICE_ACCOUNT_KEY;
+  process.env.VAPID_PUBLIC_KEY = env.VAPID_PUBLIC_KEY;
+  process.env.VAPID_PRIVATE_KEY = env.VAPID_PRIVATE_KEY;
+
   console.log(`[notifyNewOrder] event received, ${event.Records.length} record(s)`);
 
   for (const record of event.Records) {

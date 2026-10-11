@@ -1,6 +1,9 @@
 import webpush from "web-push";
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
+import { SSMClient, GetParametersCommand } from "@aws-sdk/client-ssm";
+
+
 
 export type PushTarget = {
   platform: "WEB" | "ANDROID";
@@ -18,17 +21,16 @@ export type PushPayload = {
 
 let fcmInitialized = false;
 
-function ensureFcmInitialized() {
+async function ensureFcmInitialized() {
   if (fcmInitialized || getApps().length > 0) {
     fcmInitialized = true;
     return;
   }
-  const raw = process.env.FCM_SERVICE_ACCOUNT_KEY;
-  if (!raw) throw new Error("FCM_SERVICE_ACCOUNT_KEY manquant");
-  console.log(`[push-sender] FCM key length=${raw.length}, starts with="${raw.slice(0, 12)}"`);
+  let raw = process.env.FCM_SERVICE_ACCOUNT_KEY;
+  if (!raw || raw.startsWith("<value will")) raw = await readSecretFromSsm("FCM_SERVICE_ACCOUNT_KEY");
+  if (!raw) throw new Error("FCM_SERVICE_ACCOUNT_KEY introuvable");
   initializeApp({ credential: cert(JSON.parse(raw)) });
   fcmInitialized = true;
-
 }
 
 function ensureWebPushConfigured() {
@@ -55,7 +57,7 @@ async function sendToWeb(target: PushTarget, payload: PushPayload): Promise<bool
 
 async function sendToAndroid(target: PushTarget, payload: PushPayload): Promise<boolean> {
   if (!target.fcmToken) return false;
-  ensureFcmInitialized();
+  await ensureFcmInitialized();
   try {
     await getMessaging().send({
       token: target.fcmToken,
@@ -77,4 +79,17 @@ export async function sendPushToTarget(target: PushTarget, payload: PushPayload)
 
 export async function sendPushToMany(targets: PushTarget[], payload: PushPayload): Promise<void> {
   await Promise.all(targets.map((t) => sendPushToTarget(t, payload)));
+}
+
+async function readSecretFromSsm(envName: string): Promise<string | undefined> {
+  const rawCfg = process.env.AMPLIFY_SSM_ENV_CONFIG;
+  console.log(`[push-sender] AMPLIFY_SSM_ENV_CONFIG=${rawCfg ?? "(absent)"}`); // uniquement des chemins SSM
+  if (!rawCfg) return undefined;
+  const entry = JSON.parse(rawCfg)[envName];
+  const names = [entry?.path, entry?.sharedPath].filter(Boolean) as string[];
+  if (!names.length) return undefined;
+  const res = await new SSMClient({}).send(new GetParametersCommand({ Names: names, WithDecryption: true }));
+  console.log(`[push-sender] SSM found=${JSON.stringify(res.Parameters?.map((p) => p.Name))} invalid=${JSON.stringify(res.InvalidParameters)}`);
+  const byName = new Map((res.Parameters ?? []).map((p) => [p.Name, p.Value]));
+  return byName.get(entry.path) ?? byName.get(entry.sharedPath);
 }

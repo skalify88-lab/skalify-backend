@@ -84,10 +84,15 @@ export const handler = async (event: DynamoDBStreamEvent) => {
     }
 
     try {
+      const total = Math.round(Number(order.total) || 0)
+        .toString()
+        .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
       const result = await sendPushToMany(targets, {
-        title: "Nouvelle commande",
-        body: `${order.articleName ?? "Un article"} — quantité ${order.quantity ?? 1}`,
-        url: "/interface_user/orders/", // ajuste si le vrai chemin diffère
+        title: `Commande #${String(order.id).slice(0, 8).toUpperCase()}`,
+        body: `${total} FCFA — Qantité : ${order.quantity ?? 1} • de ${order.buyerName ?? "un client"}`,
+        url: `/interface_user/commande-details/index.html?id=${encodeURIComponent(order.id)}`,
+        orderId: String(order.id),
       });
       console.log("[notifyNewOrder] sendPushToMany result:", JSON.stringify(result));
     } catch (err) {

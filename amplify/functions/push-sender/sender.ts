@@ -17,6 +17,7 @@ export type PushPayload = {
   title: string;
   body: string;
   url?: string;
+  orderId?: string;
 };
 
 let fcmInitialized = false;
@@ -61,8 +62,13 @@ async function sendToAndroid(target: PushTarget, payload: PushPayload): Promise<
   try {
     await getMessaging().send({
       token: target.fcmToken,
-      notification: { title: payload.title, body: payload.body },
-      data: payload.url ? { url: payload.url } : undefined,
+      data: {
+        title: payload.title,
+        body: payload.body,
+        ...(payload.url ? { url: payload.url } : {}),
+        ...(payload.orderId ? { orderId: payload.orderId } : {}),
+      },
+      android: { priority: "high" },
     });
     return true;
   } catch (err) {

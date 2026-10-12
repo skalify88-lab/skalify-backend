@@ -90,7 +90,7 @@ export const handler = async (event: DynamoDBStreamEvent) => {
 
       const result = await sendPushToMany(targets, {
         title: `Commande #${String(order.id).slice(0, 8).toUpperCase()}`,
-        body: `${total} FCFA — Qantité : ${order.quantity ?? 1} • de ${order.buyerName ?? "un client"}`,
+        body: `${total} FCFA — Quantité : ${order.quantity ?? 1} — ${order.articleName ?? "Article"} • de ${order.buyerName ?? "un client"}`,
         url: `/interface_user/commande-details/index.html?id=${encodeURIComponent(order.id)}`,
         orderId: String(order.id),
       });
